@@ -2,8 +2,30 @@ import SwiftUI
 import VisionKit
 import UIKit
 import UniformTypeIdentifiers
+import PhotosUI
 
-// MARK: - Real-device document scanner using VisionKit
+// MARK: - Smart Scanner
+// On a real device: VNDocumentCameraViewController (VisionKit)
+// On the simulator: PHPickerViewController (photo library, multi-select)
+// After either path, images flow into the same VisionKit OCR pipeline in NotesViewModel.
+
+struct AdaptiveDocumentScanner: View {
+    var onScan: ([UIImage]) -> Void
+
+    var body: some View {
+        #if targetEnvironment(simulator)
+        SimulatorScannerView(onScan: onScan)
+        #else
+        if VNDocumentCameraViewController.isSupported {
+            DocumentScannerView(onScan: onScan)
+        } else {
+            SimulatorScannerView(onScan: onScan)
+        }
+        #endif
+    }
+}
+
+// MARK: - Real-device VisionKit Document Camera
 
 struct DocumentScannerView: UIViewControllerRepresentable {
     var onScan: ([UIImage]) -> Void
@@ -41,7 +63,60 @@ struct DocumentScannerView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - Simulator fallback — photo library picker
+// MARK: - Simulator Scanner
+// Uses PHPickerViewController so the student can select multiple images
+// from the simulator's photo library (drag images from Finder into the
+// simulator Photos app first). The selected images are then passed into
+// the exact same VisionKit OCR pipeline as real scans.
+
+struct SimulatorScannerView: UIViewControllerRepresentable {
+    var onScan: ([UIImage]) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onScan: onScan) }
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        // Allow multiple pages to be selected — mimics multi-page document scan
+        config.selectionLimit = 20
+        config.preferredAssetRepresentationMode = .current
+
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let onScan: ([UIImage]) -> Void
+        init(onScan: @escaping ([UIImage]) -> Void) { self.onScan = onScan }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            guard !results.isEmpty else { return }
+
+            // Load all images in order, then call onScan once all are ready
+            var images = [UIImage?](repeating: nil, count: results.count)
+            let group = DispatchGroup()
+
+            for (index, result) in results.enumerated() {
+                group.enter()
+                result.itemProvider.loadObject(ofClass: UIImage.self) { object, _ in
+                    images[index] = object as? UIImage
+                    group.leave()
+                }
+            }
+
+            group.notify(queue: .main) {
+                let loaded = images.compactMap { $0 }
+                if !loaded.isEmpty { self.onScan(loaded) }
+            }
+        }
+    }
+}
+
+// MARK: - Legacy single-image picker (kept for compatibility)
 
 struct SimulatorImagePicker: UIViewControllerRepresentable {
     var onScan: ([UIImage]) -> Void
@@ -75,10 +150,11 @@ struct SimulatorImagePicker: UIViewControllerRepresentable {
 }
 
 // MARK: - PDF Document Picker (UIDocumentPickerViewController)
-// Allows importing PDF files from the Files app or iCloud Drive.
+// Works on both simulator and real device.
+// On the simulator, add PDF files via Finder → drag into the simulator
+// Files app, or place them in the simulator's Documents directory.
 
 struct DocumentPickerView: UIViewControllerRepresentable {
-    /// Called with the security-scoped URL of the chosen PDF.
     var onPick: (URL) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
@@ -88,7 +164,6 @@ struct DocumentPickerView: UIViewControllerRepresentable {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
         picker.allowsMultipleSelection = false
         picker.delegate = context.coordinator
-        // Always start from the Files app root so the student can browse iCloud
         picker.shouldShowFileExtensions = true
         return picker
     }

@@ -10,7 +10,6 @@ struct PomodoroRecord: Codable, Identifiable {
     var ambientSoundUsed: String
     var recordedAt: Date
 
-    // MARK: - Memberwise init
     init(id: String? = nil, userId: String, cyclesCompleted: Int,
          totalWorkMinutes: Int, subjectTag: String,
          ambientSoundUsed: String, recordedAt: Date) {
@@ -23,7 +22,7 @@ struct PomodoroRecord: Codable, Identifiable {
         self.recordedAt = recordedAt
     }
 
-    // MARK: - Firestore read
+    // Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -35,7 +34,7 @@ struct PomodoroRecord: Codable, Identifiable {
         self.recordedAt = (data["recordedAt"] as? Timestamp)?.dateValue() ?? Date()
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         return [
             "userId": userId,

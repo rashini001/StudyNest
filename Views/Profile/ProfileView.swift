@@ -5,17 +5,17 @@ struct ProfileView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @Environment(\.dismiss) var dismiss
 
-    @State private var showEditProfile = false
-    @State private var showSettings    = false
+    @State private var showEditProfile  = false
+    @State private var showSettings     = false
     @State private var showSignOutAlert = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 28) {
 
-                    // ── Avatar + name header ──────────────────────────────
-                    VStack(spacing: 12) {
+                    // ── Avatar + name header ──────────────────────────
+                    VStack(spacing: 14) {
                         ZStack {
                             Circle()
                                 .fill(
@@ -26,13 +26,17 @@ struct ProfileView: View {
                                     )
                                 )
                                 .frame(width: 90, height: 90)
+                                .shadow(color: .nestPurple.opacity(0.35), radius: 12, y: 6)
 
                             Text(authVM.initials)
                                 .font(.system(size: 34, weight: .bold))
                                 .foregroundColor(.white)
                         }
 
-                        Text(authVM.profileDisplayName)
+                        // Display name (shows "—" if not set yet)
+                        Text(authVM.profileDisplayName.isEmpty
+                             ? "—"
+                             : authVM.profileDisplayName)
                             .font(.title2).bold()
                             .foregroundColor(.nestDark)
 
@@ -40,9 +44,35 @@ struct ProfileView: View {
                             .font(.subheadline)
                             .foregroundColor(.gray)
                     }
-                    .padding(.top, 16)
+                    .padding(.top, 20)
 
-                    // ── Action cards ─────────────────────────────────────
+                    // ── Quick preference summary card ─────────────────
+                    HStack(spacing: 0) {
+                        PreferencePill(
+                            icon:  "timer",
+                            label: "\(authVM.preferredDuration) min",
+                            color: .nestPurple
+                        )
+                        Divider().frame(height: 36)
+                        PreferencePill(
+                            icon:  "waveform",
+                            label: authVM.preferredSound,
+                            color: .nestPink
+                        )
+                        Divider().frame(height: 36)
+                        PreferencePill(
+                            icon:  authVM.faceIDEnabled ? "faceid" : "lock.slash",
+                            label: authVM.faceIDEnabled ? "Face ID" : "Off",
+                            color: authVM.faceIDEnabled ? .green : .gray
+                        )
+                    }
+                    .padding(.vertical, 14)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+                    .padding(.horizontal)
+
+                    // ── Action cards ──────────────────────────────────
                     VStack(spacing: 0) {
                         ProfileRow(icon: "person.fill",
                                    label: "Edit Profile",
@@ -82,16 +112,14 @@ struct ProfileView: View {
                         .foregroundColor(.nestPurple)
                 }
             }
-            // ── Sheets ───────────────────────────────────────────────────
+            // ── Sheets ────────────────────────────────────────────────
             .sheet(isPresented: $showEditProfile) {
-                EditProfileView()
-                    .environmentObject(authVM)
+                EditProfileView().environmentObject(authVM)
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
-                    .environmentObject(authVM)
+                SettingsView().environmentObject(authVM)
             }
-            // ── Sign-out alert ───────────────────────────────────────────
+            // ── Sign-out alert ────────────────────────────────────────
             .alert("Sign Out", isPresented: $showSignOutAlert) {
                 Button("Cancel", role: .cancel) {}
                 Button("Sign Out", role: .destructive) {
@@ -140,5 +168,25 @@ private struct ProfileRow: View {
             .padding(.vertical, 14)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - PreferencePill helper
+private struct PreferencePill: View {
+    let icon:  String
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(color)
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.nestDark)
+        }
+        .frame(maxWidth: .infinity)
     }
 }

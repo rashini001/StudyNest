@@ -1,8 +1,6 @@
 import Foundation
 import FirebaseFirestore
 
-// NOTE: No Firebase Storage — PDF data stored locally using FileManager.
-// Firestore only stores metadata. localFileName is used to retrieve from device.
 struct PDFNote: Codable, Identifiable {
     var id: String?
     var userId: String
@@ -13,7 +11,6 @@ struct PDFNote: Codable, Identifiable {
     var isScanned: Bool
     var uploadedAt: Date
 
-    // MARK: - Memberwise init
     init(id: String? = nil, userId: String, title: String, subject: String,
          localFileName: String, pageCount: Int, isScanned: Bool, uploadedAt: Date) {
         self.id = id
@@ -26,7 +23,7 @@ struct PDFNote: Codable, Identifiable {
         self.uploadedAt = uploadedAt
     }
 
-    // MARK: - Firestore read
+    //Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -39,7 +36,7 @@ struct PDFNote: Codable, Identifiable {
         self.uploadedAt = (data["uploadedAt"] as? Timestamp)?.dateValue() ?? Date()
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         return [
             "userId": userId,

@@ -1,5 +1,4 @@
 import SwiftUI
-internal import LocalAuthentication
 
 struct LoginView: View {
 
@@ -8,7 +7,6 @@ struct LoginView: View {
     @State private var email        = ""
     @State private var password     = ""
     @State private var showRegister = false
-    @State private var biometricError = ""
 
     var body: some View {
         ZStack {
@@ -52,17 +50,12 @@ struct LoginView: View {
                         .background(Color.white)
                         .cornerRadius(12)
 
-                    // Error messages
+                    // Error message
                     if !authVM.errorMessage.isEmpty {
                         Text(authVM.errorMessage)
                             .foregroundColor(.yellow)
                             .font(.caption)
                             .multilineTextAlignment(.center)
-                    }
-                    if !biometricError.isEmpty {
-                        Text(biometricError)
-                            .foregroundColor(.yellow)
-                            .font(.caption)
                     }
 
                     // Sign In button
@@ -72,15 +65,17 @@ struct LoginView: View {
                     .buttonStyle(GradientButtonStyle())
                     .disabled(authVM.isLoading)
 
-                    // Face ID button
-                    if BiometricService.shared.biometricType != .none {
+                    // Face ID button — only shown when the user has
+                    // previously enabled it in Settings AND Face ID
+                    // hardware is available on this device.
+                    if authVM.faceIDEnabled && BiometricService.shared.isFaceIDAvailable {
                         Button {
-                            Task { await signInWithBiometric() }
+                            Task { await authVM.signInWithFaceID() }
                         } label: {
                             HStack(spacing: 8) {
-                                Image(systemName: biometricIcon)
+                                Image(systemName: "faceid")
                                     .font(.title3)
-                                Text("Sign in with \(biometricLabel)")
+                                Text("Sign in with Face ID")
                                     .font(.subheadline)
                             }
                             .foregroundColor(.white)
@@ -106,35 +101,6 @@ struct LoginView: View {
         }
         .sheet(isPresented: $showRegister) {
             RegisterView().environmentObject(authVM)
-        }
-    }
-
-    // MARK: - Biometric helpers
-
-    private var biometricIcon: String {
-        BiometricService.shared.biometricType == .faceID ? "faceid" : "touchid"
-    }
-
-    private var biometricLabel: String {
-        BiometricService.shared.biometricType == .faceID ? "Face ID" : "Touch ID"
-    }
-
-    private func signInWithBiometric() async {
-        biometricError = ""
-        let success = await BiometricService.shared.authenticate(
-            reason: "Sign in to StudyNest"
-        )
-        if success {
-            // Biometric only validates the local user — still need saved credentials
-            // Try signing in with the last used email if password is pre-filled,
-            // otherwise prompt the user to enter their password first.
-            guard !email.isEmpty, !password.isEmpty else {
-                biometricError = "Enter your email and password first, then use Face ID."
-                return
-            }
-            await authVM.signIn(email: email, password: password)
-        } else {
-            biometricError = "Biometric authentication failed."
         }
     }
 }

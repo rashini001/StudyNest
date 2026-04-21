@@ -5,7 +5,7 @@ final class FirestoreService {
     static let shared = FirestoreService()
     private let db = Firestore.firestore()
 
-    // MARK: - Sessions
+    //Sessions
 
     func saveSesion(_ session: StudySession) async throws {
         if let id = session.id {
@@ -27,7 +27,7 @@ final class FirestoreService {
         try await db.collection("sessions").document(id).delete()
     }
 
-    // MARK: - Study Spots
+    //Study Spots
 
     func saveSpot(_ spot: StudySpot) async throws {
         if let id = spot.id {
@@ -48,7 +48,7 @@ final class FirestoreService {
         try await db.collection("spots").document(id).delete()
     }
 
-    // MARK: - PDF Notes
+    //PDF Notes
 
     func saveNote(_ note: PDFNote) async throws {
         if let id = note.id {
@@ -70,7 +70,7 @@ final class FirestoreService {
         try await db.collection("notes").document(id).delete()
     }
 
-    // MARK: - Flashcard Decks
+    //Flashcard Decks
 
     func saveFlashcardDeck(_ deck: FlashcardDeck) async throws -> String {
         if let id = deck.id {
@@ -100,7 +100,7 @@ final class FirestoreService {
         try await db.collection("decks").document(id).delete()
     }
 
-    // MARK: - Flashcards
+    //Flashcards
 
     func saveCard(_ card: Flashcard, toDeck deckId: String) async throws {
         if let id = card.id {
@@ -123,7 +123,6 @@ final class FirestoreService {
             .collection("cards").document(id).delete()
     }
 
-    /// Atomic accuracy update — only writes changed fields
     func updateCardAccuracy(_ card: Flashcard, toDeck deckId: String) async throws {
         guard let id = card.id else { return }
         try await db.collection("decks").document(deckId)
@@ -133,7 +132,7 @@ final class FirestoreService {
             ])
     }
 
-    // MARK: - Tasks
+    //Tasks
 
     func saveTask(_ task: StudyTask) async throws {
         if let id = task.id {
@@ -151,7 +150,7 @@ final class FirestoreService {
         return snapshot.documents.compactMap { StudyTask(document: $0) }
     }
 
-    // MARK: - Pomodoro
+    //Pomodoro
 
     func savePomodoroRecord(_ record: PomodoroRecord) async throws {
         _ = try await db.collection("pomodoro").addDocument(data: record.toFirestoreData())

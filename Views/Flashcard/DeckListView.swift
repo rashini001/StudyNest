@@ -12,8 +12,6 @@ struct DeckListView: View {
     @StateObject private var vm = FlashcardViewModel()
 
     @State private var showingCreateDeck  = false
-    @State private var showingAddCard     = false
-    @State private var showingReview      = false
     @State private var showingScanConfirm = false
     @State private var selectedDeck: FlashcardDeck?
 
@@ -46,19 +44,9 @@ struct DeckListView: View {
                 }
             }
             .sheet(isPresented: $showingCreateDeck) { createDeckSheet }
-            .sheet(isPresented: $showingAddCard) {
-                if let deck = selectedDeck {
-                    AddFlashcardView(deck: deck, vm: vm)
-                }
-            }
             .sheet(isPresented: $showingScanConfirm) {
                 if let deck = selectedDeck {
                     ScanConfirmView(vm: vm, deck: deck)
-                }
-            }
-            .fullScreenCover(isPresented: $showingReview) {
-                if let deck = selectedDeck {
-                    ReviewView(deck: deck, vm: vm)
                 }
             }
             .alert("Error", isPresented: .constant(vm.errorMessage != nil)) {
@@ -88,47 +76,31 @@ struct DeckListView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 14) {
                 ForEach(vm.decks) { deck in
-                    DeckCard(deck: deck)
-                        .onTapGesture {
+                    // NavigationLink → DeckDetailView on tap
+                    NavigationLink(destination: DeckDetailView(deck: deck, vm: vm)) {
+                        DeckCard(deck: deck)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
                             selectedDeck = deck
-                            showingAddCard = true
+                        } label: {
+                            Label("View Deck", systemImage: "rectangle.stack")
                         }
-                        .contextMenu {
-                            Button {
-                                selectedDeck = deck
-                                showingAddCard = true
-                            } label: {
-                                Label("Add Card", systemImage: "plus.rectangle.on.rectangle")
-                            }
-                            Button {
-                                selectedDeck = deck
-                                showingReview = true
-                            } label: {
-                                Label("Start Review", systemImage: "play.fill")
-                            }
-                            Divider()
-                            Button(role: .destructive) {
-                                Task { await vm.deleteDeck(deck) }
-                            } label: {
-                                Label("Delete Deck", systemImage: "trash")
-                            }
+                        Divider()
+                        Button(role: .destructive) {
+                            Task { await vm.deleteDeck(deck) }
+                        } label: {
+                            Label("Delete Deck", systemImage: "trash")
                         }
-                        .swipeActions(edge: .leading) {
-                            Button {
-                                selectedDeck = deck
-                                showingReview = true
-                            } label: {
-                                Label("Review", systemImage: "play.fill")
-                            }
-                            .tint(.nestPurple)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            Task { await vm.deleteDeck(deck) }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                Task { await vm.deleteDeck(deck) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
+                    }
                 }
             }
             .padding(.horizontal, 18)

@@ -11,7 +11,10 @@ struct NotesVaultView: View {
         NavigationStack {
             Group {
                 if !vm.isAuthenticated {
-                    VaultLockedView { Task { await vm.authenticate() } }
+                    VaultLockedView(
+                        isBiometricsAvailable: BiometricService.shared.isFaceIDAvailable,
+                        onUnlock: { Task { await vm.authenticate() } }
+                    )
                 } else {
                     NotesList(vm: vm, showScanner: $showScanner, showPicker: $showPicker, showOCR: $showOCR)
                 }
@@ -21,52 +24,43 @@ struct NotesVaultView: View {
                 if vm.isAuthenticated {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
-                            Button("Scan Notes", systemImage: "camera.fill") {
-                                showScanner = true
-                            }
-                            Button("Import PDF", systemImage: "doc.fill") {
-                                showPicker = true
-                            }
+                            Button("Scan Notes", systemImage: "camera.fill") { showScanner = true }
+                            Button("Import PDF", systemImage: "doc.fill") { showPicker = true }
                         } label: {
                             Image(systemName: "plus")
                         }
                     }
                 }
             }
-            // VisionKit scanner (real device) / photo picker (simulator)
+            // Auto-trigger Face ID as soon as the vault screen appears
+            .onAppear {
+                if !vm.isAuthenticated {
+                    Task { await vm.authenticate() }
+                }
+            }
             .fullScreenCover(isPresented: $showScanner) {
-                if VNDocumentCameraViewController.isSupported {
-                    DocumentScannerView { images in
-                        showScanner = false
-                        Task {
-                            await vm.processScan(
-                                images: images,
-                                title: "Scan \(Date().shortDisplay)",
-                                subject: vm.selectedSubject == "All" ? "General" : vm.selectedSubject
-                            )
-                        }
-                    }
-                } else {
-                    SimulatorImagePicker { images in
-                        showScanner = false
-                        Task {
-                            await vm.processScan(
-                                images: images,
-                                title: "Scan \(Date().shortDisplay)",
-                                subject: vm.selectedSubject == "All" ? "General" : vm.selectedSubject
-                            )
-                        }
+                AdaptiveDocumentScanner { images in
+                    showScanner = false
+                    Task {
+                        await vm.processScan(
+                            images: images,
+                            title: "Scan \(Date().shortDisplay)",
+                            subject: vm.selectedSubject == "All" ? "General" : vm.selectedSubject
+                        )
                     }
                 }
             }
-            // PDF document picker
             .sheet(isPresented: $showPicker) {
                 DocumentPickerView { url in
                     showPicker = false
-                    Task { await vm.importPDFFromURL(url, subject: vm.selectedSubject == "All" ? "General" : vm.selectedSubject) }
+                    Task {
+                        await vm.importPDFFromURL(
+                            url,
+                            subject: vm.selectedSubject == "All" ? "General" : vm.selectedSubject
+                        )
+                    }
                 }
             }
-            // OCR results sheet
             .sheet(isPresented: $showOCR) {
                 OCRResultView(
                     observations: vm.ocrResult,
@@ -95,7 +89,6 @@ struct NotesList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Subject tab bar
             SubjectTabBar(subjects: vm.allSubjects, selected: $vm.selectedSubject)
 
             if vm.isLoading {
@@ -133,10 +126,7 @@ struct NotesList: View {
         }
         .onChange(of: vm.ocrResult) { newValue in
             if !newValue.isEmpty {
-                // slight delay so sheet bindings settle
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    showOCR = true
-                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { showOCR = true }
             }
         }
     }
@@ -191,22 +181,16 @@ struct NoteRow: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(note.title)
-                    .font(.headline)
-                    .foregroundColor(.nestDark)
-                    .lineLimit(1)
+                    .font(.headline).foregroundColor(.nestDark).lineLimit(1)
                 HStack(spacing: 6) {
                     Label(note.subject, systemImage: "folder.fill")
-                        .font(.caption)
-                        .foregroundColor(.nestPurple)
-                    Text("·")
-                        .foregroundColor(.gray)
+                        .font(.caption).foregroundColor(.nestPurple)
+                    Text("·").foregroundColor(.gray)
                     Text("\(note.pageCount) \(note.pageCount == 1 ? "page" : "pages")")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                        .font(.caption).foregroundColor(.gray)
                 }
                 Text(note.uploadedAt.shortDisplay)
-                    .font(.caption2)
-                    .foregroundColor(.gray.opacity(0.8))
+                    .font(.caption2).foregroundColor(.gray.opacity(0.8))
             }
             Spacer()
         }
@@ -226,62 +210,100 @@ struct EmptyVaultView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.nestPurple.opacity(0.4))
             Text("No notes here")
-                .font(.title3).bold()
-                .foregroundColor(.nestDark)
+                .font(.title3).bold().foregroundColor(.nestDark)
             Text("Scan handwritten notes or import a PDF to get started.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.gray)
-                .padding(.horizontal)
+                .multilineTextAlignment(.center).foregroundColor(.gray).padding(.horizontal)
             HStack(spacing: 12) {
-                Button("Scan Notes") { showScanner = true }
-                    .buttonStyle(GradientButtonStyle())
-                Button("Import PDF") { showPicker = true }
-                    .buttonStyle(OutlineButtonStyle())
+                Button("Scan Notes") { showScanner = true }.buttonStyle(GradientButtonStyle())
+                Button("Import PDF") { showPicker = true }.buttonStyle(OutlineButtonStyle())
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
     }
 }
 
 // MARK: - Vault Locked View
 
 struct VaultLockedView: View {
+    let isBiometricsAvailable: Bool
     let onUnlock: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 28) {
+            Spacer()
+
+            // Lock icon — Face ID on real device, shield on simulator
             ZStack {
                 Circle()
                     .fill(Color.nestPurple.opacity(0.12))
-                    .frame(width: 110, height: 110)
+                    .frame(width: 120, height: 120)
                 Image(systemName: "faceid")
-                    .font(.system(size: 54, weight: .light))
+                    .font(.system(size: 58, weight: .light))
                     .foregroundColor(.nestPurple)
             }
 
-            Text("Notes Vault Locked")
-                .font(.title2).bold()
-                .foregroundColor(.nestDark)
+            VStack(spacing: 10) {
+                Text("Notes Vault Locked")
+                    .font(.title2).bold().foregroundColor(.nestDark)
 
-            Text("Use Face ID to access your notes.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.gray)
-                .padding(.horizontal, 32)
+                if isBiometricsAvailable {
+                    // Real device — proper Face ID description
+                    Text("Authenticate with Face ID to access your private notes.")
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.gray)
+                        .padding(.horizontal, 40)
+                } else {
+                    // Simulator — explain the gate is still enforced
+                    VStack(spacing: 6) {
+                        Text("Face ID is required to access this vault.")
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.gray)
+                            .padding(.horizontal, 40)
 
-            Button(action: onUnlock) {
-                Label("Unlock with Face ID", systemImage: "faceid")
-                    .frame(maxWidth: .infinity)
+                        // Simulator-only badge
+                        Label("Simulator Mode", systemImage: "desktopcomputer")
+                            .font(.caption)
+                            .foregroundColor(.nestPurple)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.nestLightPurple)
+                            .clipShape(Capsule())
+                    }
+                }
             }
-            .buttonStyle(GradientButtonStyle())
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                if isBiometricsAvailable {
+                    // Real device — Face ID button
+                    Button(action: onUnlock) {
+                        Label("Unlock with Face ID", systemImage: "faceid")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(GradientButtonStyle())
+                } else {
+                    // Simulator — clearly labelled dev bypass, gate still visible
+                    Button(action: onUnlock) {
+                        Label("Simulate Face ID unlock", systemImage: "faceid")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(GradientButtonStyle())
+
+                    Text("On a real device this button is replaced by a Face ID prompt.")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                }
+            }
             .padding(.horizontal, 40)
+            .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 }
 
-// MARK: - Outline Button Style (add to your styles file if not already there)
+// MARK: - Outline Button Style
 
 struct OutlineButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -290,10 +312,7 @@ struct OutlineButtonStyle: ButtonStyle {
             .foregroundColor(.nestPurple)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.nestPurple, lineWidth: 1.5)
-            )
+            .background(RoundedRectangle(cornerRadius: 12).stroke(Color.nestPurple, lineWidth: 1.5))
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }

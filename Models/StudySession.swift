@@ -12,12 +12,10 @@ struct StudySession: Codable, Identifiable {
     var calendarEventId: String?
     var createdAt: Date
 
-    // Computed — not stored in Firestore
     var computedDuration: Int {
         max(0, Int(endTime.timeIntervalSince(startTime) / 60))
     }
 
-    // MARK: - Memberwise init
     init(id: String? = nil, userId: String, subject: String,
          startTime: Date, endTime: Date, notes: String,
          isCompleted: Bool, calendarEventId: String? = nil, createdAt: Date) {
@@ -32,7 +30,7 @@ struct StudySession: Codable, Identifiable {
         self.createdAt = createdAt
     }
 
-    // MARK: - Firestore read
+    //Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -46,7 +44,7 @@ struct StudySession: Codable, Identifiable {
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         var data: [String: Any] = [
             "userId": userId,

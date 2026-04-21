@@ -9,13 +9,11 @@ struct Flashcard: Codable, Identifiable {
     var timesAttempted: Int
     var timesCorrect: Int
 
-    // Computed — not stored in Firestore
     var accuracy: Double {
         guard timesAttempted > 0 else { return 0 }
         return Double(timesCorrect) / Double(timesAttempted)
     }
 
-    // MARK: - Memberwise init (used by ViewModels)
     init(id: String? = nil, deckId: String, question: String,
          answer: String, timesAttempted: Int, timesCorrect: Int) {
         self.id = id
@@ -26,7 +24,7 @@ struct Flashcard: Codable, Identifiable {
         self.timesCorrect = timesCorrect
     }
 
-    // MARK: - Firestore read
+    //Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -37,7 +35,7 @@ struct Flashcard: Codable, Identifiable {
         self.timesCorrect = data["timesCorrect"] as? Int ?? 0
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         return [
             "deckId": deckId,

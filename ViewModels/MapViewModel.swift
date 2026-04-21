@@ -3,7 +3,7 @@ import MapKit
 import CoreLocation
 import Combine
 
-// MARK: - SpotCategory
+//SpotCategory
 enum SpotCategory: String, CaseIterable, Identifiable {
     case library    = "Library"
     case cafe       = "Cafe"
@@ -33,7 +33,6 @@ enum SpotCategory: String, CaseIterable, Identifiable {
         }
     }
 
-    // MKLocalSearch keyword for auto-loading nearby POIs
     var searchKeyword: String {
         switch self {
         case .library:    return "library"
@@ -47,7 +46,7 @@ enum SpotCategory: String, CaseIterable, Identifiable {
 
 import SwiftUI
 
-// MARK: - NearbyPlace  (search results / nearby POIs — NOT saved spots)
+//NearbyPlace
 struct NearbyPlace: Identifiable {
     let id    = UUID()
     let item:  MKMapItem
@@ -60,34 +59,34 @@ struct NearbyPlace: Identifiable {
 @MainActor
 final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
-    // MARK: - Map state
+    //Map state
     @Published var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
         span:   MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
     )
     @Published var userLocation: CLLocationCoordinate2D? = nil
 
-    // MARK: - Saved spots (Firestore)
+    // Saved spots
     @Published var savedSpots: [StudySpot] = []
 
-    // MARK: - Nearby POIs (auto-loaded from MKLocalSearch)
+    //Nearby POIs
     @Published var nearbyPlaces: [NearbyPlace] = []
 
-    // MARK: - Search
+    //Search
     @Published var searchText:    String     = ""
     @Published var searchResults: [NearbyPlace] = []
     @Published var isSearching:   Bool       = false
 
-    // MARK: - Selection
+    //Selection
     @Published var selectedNearby: NearbyPlace?  = nil   // tap nearby pin
     @Published var selectedSaved:  StudySpot?    = nil   // tap saved pin
 
-    // MARK: - UI state
+    //UI state
     @Published var isLoading:     Bool   = false
     @Published var errorMessage:  String = ""
     @Published var activeFilter:  SpotCategory? = nil    // nil = all
 
-    // MARK: - Private
+    //Private
     private let firestore       = FirestoreService.shared
     private let locationManager = CLLocationManager()
     private var userId: String  { AuthService.shared.currentUserId ?? "" }
@@ -99,8 +98,6 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         locationManager.requestWhenInUseAuthorization()
     }
-
-    // MARK: - CLLocationManagerDelegate
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
@@ -130,7 +127,7 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
     nonisolated func locationManager(_ manager: CLLocationManager,
                                      didFailWithError error: Error) { }
 
-    // MARK: - Saved Spots
+    //Saved Spots
 
     func loadSavedSpots() async {
         savedSpots = (try? await firestore.fetchSpots(for: userId)) ?? []
@@ -166,7 +163,7 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         }
     }
 
-    // MARK: - Nearby POIs (auto-load libraries + cafes)
+    //Nearby POIs
 
     func loadNearbyPlaces() async {
         let centre = userLocation ?? region.center
@@ -199,7 +196,7 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         return items.prefix(8).map { NearbyPlace(item: $0, category: category) }
     }
 
-    // MARK: - Keyword Search (user-typed)
+    //Keyword Search
 
     func search() async {
         let query = searchText.trimmingCharacters(in: .whitespaces)
@@ -208,7 +205,6 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         let centre  = userLocation ?? region.center
         let req     = MKLocalSearch.Request()
         req.naturalLanguageQuery = query
-        // Use a WIDE region so results aren't clipped to a tiny area
         req.region = MKCoordinateRegion(
             center: centre,
             span:   MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
@@ -217,7 +213,6 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         searchResults = items.map { NearbyPlace(item: $0, category: guessCategory($0)) }
         isSearching   = false
 
-        // Pan map to first result
         if let first = searchResults.first {
             withAnimation {
                 region.center = first.coordinate
@@ -230,7 +225,7 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         searchResults = []
     }
 
-    // MARK: - Directions
+    //Directions
 
     func openDirections(to coordinate: CLLocationCoordinate2D, name: String) {
         let placemark = MKPlacemark(coordinate: coordinate)
@@ -241,15 +236,13 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         ])
     }
 
-    // MARK: - Filtered display
+    //Filtered display
 
     var displayedNearby: [NearbyPlace] {
         let base = searchResults.isEmpty ? nearbyPlaces : searchResults
         guard let filter = activeFilter else { return base }
         return base.filter { $0.category == filter }
     }
-
-    // MARK: - Private helpers
 
     private func guessCategory(_ item: MKMapItem) -> SpotCategory {
         let name = (item.name ?? "").lowercased()

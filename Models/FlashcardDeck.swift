@@ -9,7 +9,6 @@ struct FlashcardDeck: Codable, Identifiable {
     var cardCount: Int
     var createdAt: Date
 
-    // MARK: - Memberwise init (used by ViewModels)
     init(id: String? = nil, userId: String, title: String,
          subject: String, cardCount: Int, createdAt: Date) {
         self.id = id
@@ -20,7 +19,7 @@ struct FlashcardDeck: Codable, Identifiable {
         self.createdAt = createdAt
     }
 
-    // MARK: - Firestore read
+    // Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -31,7 +30,7 @@ struct FlashcardDeck: Codable, Identifiable {
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         return [
             "userId": userId,

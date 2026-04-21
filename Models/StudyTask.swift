@@ -31,7 +31,6 @@ struct StudyTask: Codable, Identifiable {
         !isCompleted && dueDate < Date()
     }
 
-    // MARK: - Memberwise init
     init(id: String? = nil, userId: String, title: String, subject: String,
          dueDate: Date, priority: TaskPriority, isCompleted: Bool,
          notificationId: String? = nil, calendarEventId: String? = nil, createdAt: Date) {
@@ -47,7 +46,7 @@ struct StudyTask: Codable, Identifiable {
         self.createdAt = createdAt
     }
 
-    // MARK: - Firestore read
+    //Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -62,7 +61,7 @@ struct StudyTask: Codable, Identifiable {
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         var data: [String: Any] = [
             "userId": userId,

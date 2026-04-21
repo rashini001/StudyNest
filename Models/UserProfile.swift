@@ -14,7 +14,6 @@ struct UserProfile: Codable, Identifiable {
         case preferredSessionDuration, preferredAmbientSound, createdAt
     }
 
-    // MARK: - Memberwise init
     init(id: String? = nil, displayName: String, email: String,
          preferredSessionDuration: Int, preferredAmbientSound: String, createdAt: Date) {
         self.id = id
@@ -25,7 +24,7 @@ struct UserProfile: Codable, Identifiable {
         self.createdAt = createdAt
     }
 
-    // MARK: - Firestore read
+    //Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -36,7 +35,7 @@ struct UserProfile: Codable, Identifiable {
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         return [
             "displayName": displayName,

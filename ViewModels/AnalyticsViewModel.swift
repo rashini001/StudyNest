@@ -1,23 +1,12 @@
-//
-//  AnalyticsViewModel.swift
-//  StudyNest
-//
-//  Drives the Analytics Dashboard.
-//  Three Swift Charts data sets:
-//    1. weeklyData       → Bar chart  (last 7 days, combined session + pomodoro minutes)
-//    2. subjectData      → Donut/Sector chart (time per subject)
-//    3. streakLineData   → Line chart (daily study minutes over last 30 days for trend)
-//
-
 import Foundation
 import SwiftUI
 import Combine
 
-// MARK: - Data Models
+//Data Models
 
 struct DailyStudyData: Identifiable {
     let id = UUID()
-    let day: String          // "Mon", "Tue" … (for bar chart x-axis)
+    let day: String
     let date: Date
     let minutes: Int
 }
@@ -29,27 +18,26 @@ struct SubjectData: Identifiable {
     let color: Color
 }
 
-/// One point on the 30-day streak line chart.
 struct StreakLinePoint: Identifiable {
     let id = UUID()
     let date: Date
-    let dayLabel: String     // "Apr 1"
+    let dayLabel: String
     let minutes: Int
-    let hasActivity: Bool    // true when the student studied that day
+    let hasActivity: Bool
 }
 
-// MARK: - ViewModel
+//ViewModel
 
 @MainActor
 final class AnalyticsViewModel: ObservableObject {
 
-    // Bar chart — last 7 days
+    // Bar chart
     @Published var weeklyData: [DailyStudyData] = []
 
-    // Donut chart — subject breakdown (all time from loaded sessions)
+    // Donut chart
     @Published var subjectData: [SubjectData] = []
 
-    // Line chart — last 30 days daily minutes
+    // Line chart
     @Published var streakLineData: [StreakLinePoint] = []
 
     // Summary stats
@@ -59,13 +47,11 @@ final class AnalyticsViewModel: ObservableObject {
 
     @Published var isLoading: Bool = false
 
-    // MARK: Colour palette
-
     private let subjectColors: [Color] = [
         .nestPurple, .nestPink, .blue, .orange, .green, .teal, .indigo, .cyan
     ]
 
-    // MARK: - Load
+    //Load
 
     func loadAnalytics() async {
         isLoading = true
@@ -85,7 +71,7 @@ final class AnalyticsViewModel: ObservableObject {
         calculateStreak(sessions: sessions)
     }
 
-    // MARK: - Bar Chart (last 7 days)
+    //Bar Chart
 
     private func buildWeeklyData(sessions: [StudySession], pomodoros: [PomodoroRecord]) {
         let cal  = Calendar.current
@@ -112,7 +98,7 @@ final class AnalyticsViewModel: ObservableObject {
         totalWeeklyMinutes = weeklyData.reduce(0) { $0 + $1.minutes }
     }
 
-    // MARK: - Donut Chart (subject breakdown)
+    //Donut Chart
 
     private func buildSubjectData(sessions: [StudySession]) {
         var map: [String: Int] = [:]
@@ -129,7 +115,7 @@ final class AnalyticsViewModel: ObservableObject {
             }
     }
 
-    // MARK: - Line Chart (last 30 days — streak trend)
+    //Line Chart
 
     private func buildStreakLineData(sessions: [StudySession], pomodoros: [PomodoroRecord]) {
         let cal    = Calendar.current
@@ -157,12 +143,11 @@ final class AnalyticsViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Current + Longest Streak
+    //Current + Longest Streak
 
     private func calculateStreak(sessions: [StudySession]) {
         let cal = Calendar.current
 
-        // Current streak — walk backwards from today
         var current   = 0
         var checkDate = Date()
         while sessions.contains(where: { cal.isDate($0.startTime, inSameDayAs: checkDate) }) {
@@ -171,7 +156,6 @@ final class AnalyticsViewModel: ObservableObject {
         }
         streakDays = current
 
-        // Longest streak — scan all unique days with activity
         let activeDays = Set(
             sessions.map { cal.startOfDay(for: $0.startTime) }
         ).sorted()

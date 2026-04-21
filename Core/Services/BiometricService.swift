@@ -1,44 +1,37 @@
 internal import LocalAuthentication
 import Foundation
 
+
 final class BiometricService {
 
     static let shared = BiometricService()
+    private init() {}
 
-    /// Returns the biometric type available on this device (.faceID, .touchID, or .none)
-    var biometricType: LABiometryType {
+    
+    var isFaceIDAvailable: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
         let context = LAContext()
         var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            return .none
-        }
-        return context.biometryType
-    }
-
-    /// True when Face ID / Touch ID is enrolled and available.
-    var isBiometricsAvailable: Bool {
-        let context = LAContext()
-        var error: NSError?
-        return context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
+                                        error: &error) else { return false }
+        return context.biometryType == .faceID
+        #endif
     }
 
     func authenticate(reason: String) async -> Bool {
-#if targetEnvironment(simulator)
-        // Simulator has no real Face ID hardware.
-        // To test: Simulator menu → Features → Face ID → Enrolled,
-        // then trigger with Features → Face ID → Matching Face.
-        // We auto-pass here so the vault UI is reachable during development.
+        #if targetEnvironment(simulator)
         return true
-#else
+        #else
         let context = LAContext()
-        // Hide the "Enter Passcode" fallback — Face ID only.
         context.localizedFallbackTitle = ""
 
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
-                                        error: &error) else {
-            return false
-        }
+                                        error: &error),
+              context.biometryType == .faceID
+        else { return false }
 
         do {
             return try await context.evaluatePolicy(
@@ -48,6 +41,6 @@ final class BiometricService {
         } catch {
             return false
         }
-#endif
+        #endif
     }
 }

@@ -18,7 +18,6 @@ struct StudySpot: Codable, Identifiable {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
-    // MARK: - Memberwise init
     init(id: String? = nil, userId: String, name: String, address: String,
          latitude: Double, longitude: Double, category: String,
          rating: Int, personalNote: String, savedAt: Date) {
@@ -34,7 +33,7 @@ struct StudySpot: Codable, Identifiable {
         self.savedAt = savedAt
     }
 
-    // MARK: - Firestore read
+    //Firestore read
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         self.id = document.documentID
@@ -49,7 +48,7 @@ struct StudySpot: Codable, Identifiable {
         self.savedAt = (data["savedAt"] as? Timestamp)?.dateValue() ?? Date()
     }
 
-    // MARK: - Firestore write
+    //Firestore write
     func toFirestoreData() -> [String: Any] {
         return [
             "userId": userId,

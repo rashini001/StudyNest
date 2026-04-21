@@ -10,9 +10,9 @@ enum AmbientSound: String, CaseIterable {
 
     var fileName: String? {
         switch self {
-        case .rain:       return "rain"
-        case .cafe:       return "cafe"
-        case .whiteNoise: return "white_noise"
+        case .rain:       return "liecio-calming-rain-257596.mp3"
+        case .cafe:       return "freesound_community-cafe-35754.mp3"
+        case .whiteNoise: return "freesound_community-whitenoise-75254"
         case .none:       return nil
         }
     }
@@ -34,7 +34,7 @@ final class AmbientSoundService: ObservableObject {
             try AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
             try AVAudioSession.sharedInstance().setActive(true)
             player = try AVAudioPlayer(contentsOf: url)
-            player?.numberOfLoops = -1  // infinite loop
+            player?.numberOfLoops = -1  
             player?.play()
             currentSound = sound
         } catch {

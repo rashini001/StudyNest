@@ -1,17 +1,7 @@
-//
-//  PersistenceController.swift
-//  StudyNest
-//
-//  Core Data stack — fully code-based, no .xcdatamodeld file needed.
-//  NSManagedObject subclasses are declared explicitly here so Xcode
-//  never needs to generate them (fixes "Cannot find type in scope").
-//
-
 import CoreData
 import Foundation
 
-// MARK: - NSManagedObject Subclasses
-// These MUST be declared before NSEntityDescription references them.
+//CDSession Managed Object
 
 @objc(CDSession)
 final class CDSession: NSManagedObject {
@@ -31,6 +21,8 @@ final class CDSession: NSManagedObject {
         NSFetchRequest<CDSession>(entityName: "CDSession")
     }
 }
+
+//CDSpot Managed Object
 
 @objc(CDSpot)
 final class CDSpot: NSManagedObject {
@@ -52,6 +44,8 @@ final class CDSpot: NSManagedObject {
     }
 }
 
+//CDNote Managed Object
+
 @objc(CDNote)
 final class CDNote: NSManagedObject {
     @NSManaged var id: String?
@@ -70,7 +64,29 @@ final class CDNote: NSManagedObject {
     }
 }
 
-// MARK: - Persistence Controller
+//CDTask Managed Object
+
+@objc(CDTask)
+final class CDTask: NSManagedObject {
+    @NSManaged var id: String?
+    @NSManaged var userId: String?
+    @NSManaged var title: String?
+    @NSManaged var subject: String?
+    @NSManaged var dueDate: Date?
+    @NSManaged var priority: String?
+    @NSManaged var isCompleted: Bool
+    @NSManaged var notificationId: String?
+    @NSManaged var calendarEventId: String?
+    @NSManaged var createdAt: Date?
+    @NSManaged var needsSync: Bool
+    @NSManaged var pendingDelete: Bool
+
+    static func fetchRequest() -> NSFetchRequest<CDTask> {
+        NSFetchRequest<CDTask>(entityName: "CDTask")
+    }
+}
+
+//Persistence Controller
 
 final class PersistenceController {
 
@@ -84,7 +100,7 @@ final class PersistenceController {
         container.newBackgroundContext()
     }
 
-    // MARK: - Init
+    //Init
 
     private init(inMemory: Bool = false) {
         container = NSPersistentContainer(
@@ -107,7 +123,7 @@ final class PersistenceController {
 
     static let preview = PersistenceController(inMemory: true)
 
-    // MARK: - Save
+    //Save
 
     func save(context: NSManagedObjectContext? = nil) {
         let ctx = context ?? viewContext
@@ -116,12 +132,12 @@ final class PersistenceController {
         catch { print("⚠️ Core Data save error: \(error)") }
     }
 
-    // MARK: - Programmatic Model
+    //Programmatic Model
 
     private static func makeModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
 
-        // ── CDSession ─────────────────────────────────────────────
+        // CDSession
         let sessionEntity = NSEntityDescription()
         sessionEntity.name = "CDSession"
         sessionEntity.managedObjectClassName = "CDSession"
@@ -139,7 +155,7 @@ final class PersistenceController {
             boolAttr("pendingDelete"),
         ]
 
-        // ── CDSpot ────────────────────────────────────────────────
+        // CDSpot
         let spotEntity = NSEntityDescription()
         spotEntity.name = "CDSpot"
         spotEntity.managedObjectClassName = "CDSpot"
@@ -158,7 +174,7 @@ final class PersistenceController {
             boolAttr("pendingDelete"),
         ]
 
-        // ── CDNote ────────────────────────────────────────────────
+        // CDNote
         let noteEntity = NSEntityDescription()
         noteEntity.name = "CDNote"
         noteEntity.managedObjectClassName = "CDNote"
@@ -175,43 +191,72 @@ final class PersistenceController {
             boolAttr("pendingDelete"),
         ]
 
-        model.entities = [sessionEntity, spotEntity, noteEntity]
+        // CDTask (NEW)
+        let taskEntity = NSEntityDescription()
+        taskEntity.name = "CDTask"
+        taskEntity.managedObjectClassName = "CDTask"
+        taskEntity.properties = [
+            strAttr("id"),
+            strAttr("userId"),
+            strAttr("title"),
+            strAttr("subject"),
+            dateAttr("dueDate"),
+            strAttr("priority"),
+            boolAttr("isCompleted"),
+            strAttr("notificationId",   optional: true),
+            strAttr("calendarEventId",  optional: true),
+            dateAttr("createdAt"),
+            boolAttr("needsSync"),
+            boolAttr("pendingDelete"),
+        ]
+
+        model.entities = [sessionEntity, spotEntity, noteEntity, taskEntity]
         return model
     }
 
-    // MARK: - Attribute builders
+    // Attribute Builders
 
     private static func strAttr(_ name: String, optional: Bool = false) -> NSAttributeDescription {
         let a = NSAttributeDescription()
-        a.name = name; a.attributeType = .stringAttributeType; a.isOptional = optional
+        a.name = name
+        a.attributeType = .stringAttributeType
+        a.isOptional = optional
         return a
     }
     private static func dateAttr(_ name: String) -> NSAttributeDescription {
         let a = NSAttributeDescription()
-        a.name = name; a.attributeType = .dateAttributeType; a.isOptional = true
+        a.name = name
+        a.attributeType = .dateAttributeType
+        a.isOptional = true
         return a
     }
     private static func boolAttr(_ name: String) -> NSAttributeDescription {
         let a = NSAttributeDescription()
-        a.name = name; a.attributeType = .booleanAttributeType
-        a.defaultValue = false; a.isOptional = false
+        a.name = name
+        a.attributeType = .booleanAttributeType
+        a.defaultValue = false
+        a.isOptional = false
         return a
     }
     private static func doubleAttr(_ name: String) -> NSAttributeDescription {
         let a = NSAttributeDescription()
-        a.name = name; a.attributeType = .doubleAttributeType
-        a.defaultValue = 0.0; a.isOptional = false
+        a.name = name
+        a.attributeType = .doubleAttributeType
+        a.defaultValue = 0.0
+        a.isOptional = false
         return a
     }
     private static func int16Attr(_ name: String) -> NSAttributeDescription {
         let a = NSAttributeDescription()
-        a.name = name; a.attributeType = .integer16AttributeType
-        a.defaultValue = 0; a.isOptional = false
+        a.name = name
+        a.attributeType = .integer16AttributeType
+        a.defaultValue = 0
+        a.isOptional = false
         return a
     }
 }
 
-// MARK: - CDSession model helpers
+//CDSession StudySession helpers
 
 extension CDSession {
     func toModel() -> StudySession {
@@ -241,7 +286,7 @@ extension CDSession {
     }
 }
 
-// MARK: - CDSpot model helpers
+//CDSpot StudySpot helpers
 
 extension CDSpot {
     func toModel() -> StudySpot {
@@ -273,7 +318,7 @@ extension CDSpot {
     }
 }
 
-// MARK: - CDNote model helpers
+//CDNote  PDFNote helpers
 
 extension CDNote {
     func toModel() -> PDFNote {
@@ -298,5 +343,37 @@ extension CDNote {
         pageCount     = Int16(n.pageCount)
         isScanned     = n.isScanned
         uploadedAt    = n.uploadedAt
+    }
+}
+
+//CDTask  StudyTask helpers 
+
+extension CDTask {
+    func toModel() -> StudyTask {
+        StudyTask(
+            id:              id,
+            userId:          userId    ?? "",
+            title:           title     ?? "",
+            subject:         subject   ?? "",
+            dueDate:         dueDate   ?? Date(),
+            priority:        TaskPriority(rawValue: priority ?? "Medium") ?? .medium,
+            isCompleted:     isCompleted,
+            notificationId:  notificationId,
+            calendarEventId: calendarEventId,
+            createdAt:       createdAt ?? Date()
+        )
+    }
+
+    func populate(from t: StudyTask) {
+        id              = t.id ?? UUID().uuidString
+        userId          = t.userId
+        title           = t.title
+        subject         = t.subject
+        dueDate         = t.dueDate
+        priority        = t.priority.rawValue
+        isCompleted     = t.isCompleted
+        notificationId  = t.notificationId
+        calendarEventId = t.calendarEventId
+        createdAt       = t.createdAt
     }
 }

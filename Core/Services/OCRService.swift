@@ -3,7 +3,7 @@ import UIKit
 
 struct OCRTextObservation {
     let text: String
-    let boundingBox: CGRect  // normalised (0-1), origin at bottom-left
+    let boundingBox: CGRect
 }
 
 final class OCRService {
@@ -26,11 +26,8 @@ final class OCRService {
         }
     }
 
-    // Sorts observations top-to-bottom (inverted Y), then left-to-right
     static func sortedTopToBottom(_ obs: [VNRecognizedTextObservation]) -> [OCRTextObservation] {
         obs.sorted {
-            // VN bbox origin is bottom-left, so higher Y = higher on screen
-            // We want top-of-page first, so sort by descending Y, then ascending X
             if abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.01 {
                 return $0.boundingBox.minY > $1.boundingBox.minY
             }
@@ -42,7 +39,6 @@ final class OCRService {
         }
     }
 
-    // Auto-pairs lines: odd lines = questions, even lines = answers
     static func autoPairToFlashcards(_ observations: [OCRTextObservation]) -> [(question: String, answer: String)] {
         let lines = observations.map { $0.text }
         var pairs: [(question: String, answer: String)] = []
