@@ -48,7 +48,7 @@ final class FirestoreService {
         try await db.collection("spots").document(id).delete()
     }
 
-    // MARK: - PDF Notes (metadata only — no Firebase Storage)
+    // MARK: - PDF Notes
 
     func saveNote(_ note: PDFNote) async throws {
         if let id = note.id {
@@ -90,6 +90,18 @@ final class FirestoreService {
         return snapshot.documents.compactMap { FlashcardDeck(document: $0) }
     }
 
+    func deleteDeck(id: String) async throws {
+        // Delete all subcollection cards first
+        let cards = try await db.collection("decks").document(id)
+            .collection("cards").getDocuments()
+        for card in cards.documents {
+            try await card.reference.delete()
+        }
+        try await db.collection("decks").document(id).delete()
+    }
+
+    // MARK: - Flashcards
+
     func saveCard(_ card: Flashcard, toDeck deckId: String) async throws {
         if let id = card.id {
             try await db.collection("decks").document(deckId)
@@ -104,6 +116,21 @@ final class FirestoreService {
         let snapshot = try await db.collection("decks")
             .document(deckId).collection("cards").getDocuments()
         return snapshot.documents.compactMap { Flashcard(document: $0) }
+    }
+
+    func deleteCard(id: String, fromDeck deckId: String) async throws {
+        try await db.collection("decks").document(deckId)
+            .collection("cards").document(id).delete()
+    }
+
+    /// Atomic accuracy update — only writes changed fields
+    func updateCardAccuracy(_ card: Flashcard, toDeck deckId: String) async throws {
+        guard let id = card.id else { return }
+        try await db.collection("decks").document(deckId)
+            .collection("cards").document(id).updateData([
+                "timesAttempted": card.timesAttempted,
+                "timesCorrect":   card.timesCorrect
+            ])
     }
 
     // MARK: - Tasks

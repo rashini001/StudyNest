@@ -1,31 +1,50 @@
 import Foundation
 import Combine
 
+// MARK: - Scan Pair (for OCR review before saving)
+struct ScanPair: Identifiable {
+    let id = UUID()
+    var question: String
+    var answer: String
+    var accepted: Bool = true   // user can reject
+}
+
 @MainActor
 final class FlashcardViewModel: ObservableObject {
 
-    @Published var decks: [FlashcardDeck]  = []
-    @Published var currentCards: [Flashcard] = []
-    @Published var reviewIndex: Int     = 0
-    @Published var showingAnswer: Bool  = false
-    @Published var correctCount: Int    = 0
-    @Published var retryCount: Int      = 0
-    @Published var isLoading: Bool      = false
+    // MARK: - Published state
+
+    @Published var decks: [FlashcardDeck]     = []
+    @Published var currentCards: [Flashcard]  = []
+    @Published var reviewIndex: Int           = 0
+    @Published var showingAnswer: Bool        = false
+    @Published var correctCount: Int          = 0
+    @Published var retryCount: Int            = 0
+    @Published var isLoading: Bool            = false
+    @Published var isSaving: Bool             = false
+    @Published var errorMessage: String?      = nil
+
+    // Scan-to-Flashcard staging area
+    @Published var scanPairs: [ScanPair]      = []
 
     init() { }
 
-    // MARK: - Computed
+    // MARK: - Computed helpers
 
     var currentCard: Flashcard? { currentCards[safe: reviewIndex] }
-    var reviewComplete: Bool    { reviewIndex >= currentCards.count }
+    var reviewComplete: Bool    { reviewIndex >= currentCards.count && !currentCards.isEmpty }
 
     // MARK: - Deck operations
 
     func loadDecks() async {
         isLoading = true
-        guard let userId = AuthService.shared.currentUserId else { isLoading = false; return }
-        decks = (try? await FirestoreService.shared.fetchDecks(for: userId)) ?? []
-        isLoading = false
+        defer { isLoading = false }
+        guard let userId = AuthService.shared.currentUserId else { return }
+        do {
+            decks = try await FirestoreService.shared.fetchDecks(for: userId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func createDeck(title: String, subject: String) async {
@@ -34,16 +53,31 @@ final class FlashcardViewModel: ObservableObject {
             userId: userId, title: title,
             subject: subject, cardCount: 0, createdAt: Date()
         )
-        let id = (try? await FirestoreService.shared.saveFlashcardDeck(deck)) ?? ""
-        var saved   = deck
-        saved.id    = id
-        decks.insert(saved, at: 0)
+        do {
+            let id  = try await FirestoreService.shared.saveFlashcardDeck(deck)
+            var saved = deck; saved.id = id
+            decks.insert(saved, at: 0)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteDeck(_ deck: FlashcardDeck) async {
+        guard let id = deck.id else { return }
+        do {
+            try await FirestoreService.shared.deleteDeck(id: id)
+            decks.removeAll { $0.id == id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     // MARK: - Card operations
 
     func loadCards(for deck: FlashcardDeck) async {
         guard let id = deck.id else { return }
+        isLoading     = true
+        defer { isLoading = false }
         currentCards  = (try? await FirestoreService.shared.fetchCards(for: id)) ?? []
         reviewIndex   = 0
         correctCount  = 0
@@ -51,28 +85,119 @@ final class FlashcardViewModel: ObservableObject {
         showingAnswer = false
     }
 
+    /// Manual entry: add a single card to a deck
     func addCard(question: String, answer: String, toDeck deck: FlashcardDeck) async {
         guard let deckId = deck.id else { return }
+        isSaving = true
+        defer { isSaving = false }
         let card = Flashcard(
             deckId: deckId, question: question,
             answer: answer, timesAttempted: 0, timesCorrect: 0
         )
-        try? await FirestoreService.shared.saveCard(card, toDeck: deckId)
+        do {
+            try await FirestoreService.shared.saveCard(card, toDeck: deckId)
+            // bump card count on deck
+            var updated        = deck
+            updated.cardCount += 1
+            _ = try? await FirestoreService.shared.saveFlashcardDeck(updated)
+            if let idx = decks.firstIndex(where: { $0.id == deckId }) {
+                decks[idx].cardCount += 1
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
-    func saveBatchCards(_ pairs: [(question: String, answer: String)],
-                        toDeck deck: FlashcardDeck) async {
+    /// Scan-to-Flashcard: build staging pairs from raw OCR lines
+    func buildScanPairs(from lines: [String]) {
+        let cleaned = lines.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                           .filter { !$0.isEmpty }
+        var pairs: [ScanPair] = []
+        var i = 0
+        while i + 1 < cleaned.count {
+            pairs.append(ScanPair(question: cleaned[i], answer: cleaned[i + 1]))
+            i += 2
+        }
+        // Orphaned last line becomes a card with empty answer for editing
+        if cleaned.count % 2 == 1, let last = cleaned.last {
+            pairs.append(ScanPair(question: last, answer: ""))
+        }
+        scanPairs = pairs
+    }
+
+    /// Swap question and answer for a pair at a given index
+    func swapPair(at index: Int) {
+        guard scanPairs.indices.contains(index) else { return }
+        let old = scanPairs[index]
+        scanPairs[index] = ScanPair(question: old.answer, answer: old.question)
+    }
+
+    /// Toggle accept/reject for a pair
+    func toggleAccepted(at index: Int) {
+        guard scanPairs.indices.contains(index) else { return }
+        scanPairs[index].accepted.toggle()
+    }
+
+    func updatePairQuestion(_ text: String, at index: Int) {
+        guard scanPairs.indices.contains(index) else { return }
+        scanPairs[index].question = text
+    }
+
+    func updatePairAnswer(_ text: String, at index: Int) {
+        guard scanPairs.indices.contains(index) else { return }
+        scanPairs[index].answer = text
+    }
+
+    /// Save all accepted scan pairs to Firestore
+    func saveAcceptedScanPairs(toDeck deck: FlashcardDeck) async {
         guard let deckId = deck.id else { return }
-        for pair in pairs {
+        isSaving = true
+        defer { isSaving = false }
+        let accepted = scanPairs.filter { $0.accepted && !$0.question.isEmpty }
+        for pair in accepted {
             let card = Flashcard(
                 deckId: deckId, question: pair.question,
                 answer: pair.answer, timesAttempted: 0, timesCorrect: 0
             )
             try? await FirestoreService.shared.saveCard(card, toDeck: deckId)
         }
+        // Update card count
+        var updated        = deck
+        updated.cardCount += accepted.count
+        _ = try? await FirestoreService.shared.saveFlashcardDeck(updated)
+        if let idx = decks.firstIndex(where: { $0.id == deckId }) {
+            decks[idx].cardCount += accepted.count
+        }
+        scanPairs = []
+    }
+
+    /// Legacy / OCRResultView entry point — saves raw (question, answer) tuple pairs directly.
+    func saveBatchCards(_ pairs: [(question: String, answer: String)],
+                        toDeck deck: FlashcardDeck) async {
+        guard let deckId = deck.id else { return }
+        isSaving = true
+        defer { isSaving = false }
+        for pair in pairs where !pair.question.isEmpty {
+            let card = Flashcard(
+                deckId: deckId, question: pair.question,
+                answer: pair.answer, timesAttempted: 0, timesCorrect: 0
+            )
+            try? await FirestoreService.shared.saveCard(card, toDeck: deckId)
+        }
+        var updated        = deck
+        updated.cardCount += pairs.count
+        _ = try? await FirestoreService.shared.saveFlashcardDeck(updated)
+        if let idx = decks.firstIndex(where: { $0.id == deckId }) {
+            decks[idx].cardCount += pairs.count
+        }
     }
 
     // MARK: - Review operations
+
+    func startReview(for deck: FlashcardDeck) async {
+        await loadCards(for: deck)
+        currentCards.shuffle()
+    }
 
     func markCorrect() async {
         correctCount += 1
@@ -90,6 +215,8 @@ final class FlashcardViewModel: ObservableObject {
         }
         card.timesAttempted += 1
         if correct { card.timesCorrect += 1 }
+        // Update local state
+        currentCards[reviewIndex] = card
         try? await FirestoreService.shared.saveCard(card, toDeck: card.deckId)
         advanceReview()
     }
@@ -97,5 +224,21 @@ final class FlashcardViewModel: ObservableObject {
     private func advanceReview() {
         showingAnswer = false
         reviewIndex  += 1
+    }
+
+    func resetReview() {
+        reviewIndex   = 0
+        correctCount  = 0
+        retryCount    = 0
+        showingAnswer = false
+        currentCards.shuffle()
+    }
+
+    // MARK: - Accuracy helpers
+
+    var sessionAccuracy: Double {
+        let total = correctCount + retryCount
+        guard total > 0 else { return 0 }
+        return Double(correctCount) / Double(total)
     }
 }

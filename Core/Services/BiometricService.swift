@@ -15,21 +15,39 @@ final class BiometricService {
         return context.biometryType
     }
 
-    func authenticate(reason: String) async -> Bool {
+    /// True when Face ID / Touch ID is enrolled and available.
+    var isBiometricsAvailable: Bool {
         let context = LAContext()
         var error: NSError?
+        return context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+    }
 
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+    func authenticate(reason: String) async -> Bool {
+#if targetEnvironment(simulator)
+        // Simulator has no real Face ID hardware.
+        // To test: Simulator menu → Features → Face ID → Enrolled,
+        // then trigger with Features → Face ID → Matching Face.
+        // We auto-pass here so the vault UI is reachable during development.
+        return true
+#else
+        let context = LAContext()
+        // Hide the "Enter Passcode" fallback — Face ID only.
+        context.localizedFallbackTitle = ""
+
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
+                                        error: &error) else {
             return false
         }
 
         do {
             return try await context.evaluatePolicy(
-                .deviceOwnerAuthentication,
+                .deviceOwnerAuthenticationWithBiometrics,
                 localizedReason: reason
             )
         } catch {
             return false
         }
+#endif
     }
 }

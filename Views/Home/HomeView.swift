@@ -4,8 +4,10 @@ struct HomeView: View {
     @StateObject private var vm = HomeViewModel()
     @EnvironmentObject var authVM: AuthViewModel
 
-    @State private var showProfile = false
-    @State private var showSessions = false
+    @State private var showProfile      = false
+    @State private var showSessions     = false
+    @State private var showFlashcards   = false
+    @State private var showStudySpot    = false
 
     var body: some View {
         NavigationStack {
@@ -91,8 +93,16 @@ struct HomeView: View {
                                 QuickActionCard(icon: "timer", label: "Start\nSession", color: .nestPurple)
                             }
                             .buttonStyle(.plain)
-                            QuickActionCard(icon: "brain.head.profile", label: "Smart\nFlashcards", color: .nestPink)
-                            QuickActionCard(icon: "mappin.and.ellipse", label: "Find\nStudy Spot", color: .orange)
+
+                            Button { showFlashcards = true } label: {
+                                QuickActionCard(icon: "brain.head.profile", label: "Smart\nFlashcards", color: .nestPink)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button { showStudySpot = true } label: {
+                                QuickActionCard(icon: "mappin.and.ellipse", label: "Find\nStudy Spot", color: .orange)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .padding(.horizontal)
                     }
@@ -165,6 +175,14 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showSessions) {
                 SessionListView()
+                    .environmentObject(authVM)
+            }
+            .sheet(isPresented: $showFlashcards) {
+                DeckListView()
+            }
+            .sheet(isPresented: $showStudySpot) {
+                // Replace with your Study Spot view if you have one
+                MapView()
                     .environmentObject(authVM)
             }
             .task { await vm.load() }

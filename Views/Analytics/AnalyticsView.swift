@@ -1,3 +1,13 @@
+//
+//  AnalyticsView.swift
+//  StudyNest
+//
+//  Visual Analytics Dashboard — three Swift Charts:
+//    1. Weekly Study Hours   → BarMark  (last 7 days)
+//    2. Subject Breakdown    → SectorMark / Donut
+//    3. Session Streak Trend → LineMark + AreaMark (last 30 days)
+//
+
 import SwiftUI
 import Charts
 
@@ -9,206 +19,419 @@ struct AnalyticsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
 
-                    // MARK: - Top Summary Banner
-                    ZStack(alignment: .leading) {
-                        LinearGradient(
-                            colors: [.nestPink, .nestPurple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                    // MARK: - Summary Banner
+                    summaryBanner
 
-                        Circle()
-                            .fill(Color.white.opacity(0.07))
-                            .frame(width: 120)
-                            .offset(x: 280, y: -30)
+                    // MARK: - Bar Chart: Weekly Study Hours
+                    weeklyBarCard
 
-                        HStack(spacing: 0) {
-                            SummaryStatBlock(
-                                value: "\(vm.totalWeeklyMinutes / 60)h",
-                                label: "24h Total",
-                                icon: "clock.fill"
-                            )
-                            Divider().background(Color.white.opacity(0.3)).frame(height: 44)
-                            SummaryStatBlock(
-                                value: "\(vm.streakDays)d",
-                                label: "7 Day Streak",
-                                icon: "flame.fill"
-                            )
-                            Divider().background(Color.white.opacity(0.3)).frame(height: 44)
-                            SummaryStatBlock(
-                                value: "\(vm.subjectData.count)",
-                                label: "Subjects",
-                                icon: "books.vertical.fill"
-                            )
-                        }
-                        .padding(.vertical, 20)
-                        .padding(.horizontal, 8)
-                    }
-                    .cornerRadius(20)
-                    .padding(.horizontal)
-                    .frame(height: 100)
-
-                    // MARK: - Monthly Study Hours (Bar Chart)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Monthly Study Hours")
-                            .font(.headline)
-                            .foregroundColor(.nestDark)
-
-                        if vm.weeklyData.isEmpty {
-                            Text("No data yet")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 160)
-                        } else {
-                            Chart(vm.weeklyData) { data in
-                                BarMark(
-                                    x: .value("Day", data.day),
-                                    y: .value("Min", data.minutes)
-                                )
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [.nestPink, .nestPurple],
-                                        startPoint: .bottom,
-                                        endPoint: .top
-                                    )
-                                )
-                                .cornerRadius(6)
-                            }
-                            .frame(height: 160)
-                            .chartXAxis {
-                                AxisMarks(values: .automatic) { _ in
-                                    AxisValueLabel()
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.gray)
-                                }
-                            }
-                            .chartYAxis {
-                                AxisMarks(values: .automatic) { _ in
-                                    AxisValueLabel()
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.gray)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(18)
-                    .shadow(color: Color.nestPurple.opacity(0.08), radius: 8, x: 0, y: 4)
-                    .padding(.horizontal)
-
-                    // MARK: - Subject Breakdown (Donut)
+                    // MARK: - Donut Chart: Subject Breakdown
                     if !vm.subjectData.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Subject Breakdown")
-                                .font(.headline)
-                                .foregroundColor(.nestDark)
-
-                            HStack(alignment: .top, spacing: 16) {
-                                Chart(vm.subjectData) { data in
-                                    SectorMark(
-                                        angle: .value("Min", data.minutes),
-                                        innerRadius: .ratio(0.55),
-                                        angularInset: 2
-                                    )
-                                    .foregroundStyle(data.color)
-                                    .cornerRadius(4)
-                                }
-                                .frame(width: 130, height: 130)
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(vm.subjectData.prefix(5)) { d in
-                                        HStack(spacing: 8) {
-                                            Circle()
-                                                .fill(d.color)
-                                                .frame(width: 10, height: 10)
-                                            Text(d.subject)
-                                                .font(.caption)
-                                                .foregroundColor(.nestDark)
-                                                .lineLimit(1)
-                                            Spacer()
-                                            Text("\(d.minutes)m")
-                                                .font(.caption)
-                                                .fontWeight(.medium)
-                                                .foregroundColor(.gray)
-                                        }
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                        }
-                        .padding()
-                        .background(Color(.systemBackground))
-                        .cornerRadius(18)
-                        .shadow(color: Color.nestPurple.opacity(0.08), radius: 8, x: 0, y: 4)
-                        .padding(.horizontal)
+                        subjectDonutCard
                     }
 
-                    // MARK: - Streak Calendar (7 days)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("7 Day Streak")
-                            .font(.headline)
-                            .foregroundColor(.nestDark)
+                    // MARK: - Line Chart: 30-Day Streak Trend
+                    streakLineCard
 
-                        HStack(spacing: 8) {
-                            ForEach(0..<7, id: \.self) { i in
-                                let date = Calendar.current.date(byAdding: .day, value: -(6 - i), to: Date()) ?? Date()
-                                let dayLabel = date.formatted(.dateTime.weekday(.abbreviated))
-                                let isActive = i < vm.streakDays
-
-                                VStack(spacing: 6) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(isActive
-                                                  ? AnyShapeStyle(LinearGradient(colors: [.nestPink, .nestPurple],
-                                                                                  startPoint: .top, endPoint: .bottom))
-                                                  : AnyShapeStyle(Color.nestLightPurple))
-                                            .frame(width: 36, height: 36)
-                                        if isActive {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 13, weight: .bold))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                    Text(dayLabel.prefix(1))
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.gray)
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(18)
-                    .shadow(color: Color.nestPurple.opacity(0.08), radius: 8, x: 0, y: 4)
-                    .padding(.horizontal)
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, 32)
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Visual Analytics")
             .navigationBarTitleDisplayMode(.large)
             .task { await vm.loadAnalytics() }
+            .overlay {
+                if vm.isLoading {
+                    ProgressView()
+                        .scaleEffect(1.4)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemBackground).opacity(0.4))
+                }
+            }
         }
     }
+
+    // MARK: - Summary Banner
+
+    private var summaryBanner: some View {
+        ZStack(alignment: .leading) {
+            LinearGradient(
+                colors: [.nestPink, .nestPurple],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .cornerRadius(20)
+
+            // Decorative circle
+            Circle()
+                .fill(Color.white.opacity(0.07))
+                .frame(width: 140)
+                .offset(x: 260, y: -35)
+
+            HStack(spacing: 0) {
+                SummaryStatBlock(
+                    value: formatHours(vm.totalWeeklyMinutes),
+                    label: "This Week",
+                    icon: "clock.fill"
+                )
+                statDivider
+                SummaryStatBlock(
+                    value: "\(vm.streakDays)d",
+                    label: "Current Streak",
+                    icon: "flame.fill"
+                )
+                statDivider
+                SummaryStatBlock(
+                    value: "\(vm.longestStreak)d",
+                    label: "Best Streak",
+                    icon: "trophy.fill"
+                )
+                statDivider
+                SummaryStatBlock(
+                    value: "\(vm.subjectData.count)",
+                    label: "Subjects",
+                    icon: "books.vertical.fill"
+                )
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 8)
+        }
+        .frame(height: 100)
+        .padding(.horizontal)
+    }
+
+    private var statDivider: some View {
+        Divider()
+            .background(Color.white.opacity(0.3))
+            .frame(height: 44)
+    }
+
+    // MARK: - Bar Chart Card
+
+    private var weeklyBarCard: some View {
+        AnalyticsCard(title: "Weekly Study Hours", icon: "chart.bar.fill") {
+            if vm.weeklyData.isEmpty {
+                emptyState("No sessions logged yet")
+            } else {
+                Chart(vm.weeklyData) { data in
+                    BarMark(
+                        x: .value("Day", data.day),
+                        y: .value("Minutes", data.minutes)
+                    )
+                    .foregroundStyle(Color.nestPurple)
+                    .cornerRadius(6)
+                    .annotation(position: .top) {
+                        if data.minutes > 0 {
+                            Text(formatHours(data.minutes))
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+                .frame(height: 180)
+                .chartXAxis {
+                    AxisMarks(values: .automatic) { _ in
+                        AxisValueLabel()
+                            .font(.caption2)
+                            .foregroundStyle(Color.gray)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(values: .automatic) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3]))
+                            .foregroundStyle(Color.gray.opacity(0.3))
+                        AxisValueLabel {
+                            if let mins = value.as(Int.self) {
+                                Text("\(mins)m")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.gray)
+                            }
+                        }
+                    }
+                }
+
+                // Footer
+                HStack {
+                    Image(systemName: "info.circle")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                    Text("Includes session planner + Pomodoro time")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    // MARK: - Donut Chart Card
+
+    private var subjectDonutCard: some View {
+        AnalyticsCard(title: "Subject Breakdown", icon: "chart.pie.fill") {
+            HStack(alignment: .center, spacing: 20) {
+
+                // Donut
+                ZStack {
+                    Chart(vm.subjectData) { data in
+                        SectorMark(
+                            angle:         .value("Minutes", data.minutes),
+                            innerRadius:   .ratio(0.58),
+                            angularInset:  2
+                        )
+                        .foregroundStyle(data.color)
+                        .cornerRadius(4)
+                    }
+                    .frame(width: 140, height: 140)
+
+                    // Centre label
+                    VStack(spacing: 2) {
+                        Text(formatHours(vm.subjectData.reduce(0) { $0 + $1.minutes }))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundColor(.nestDark)
+                        Text("total")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                    }
+                }
+
+                // Legend
+                VStack(alignment: .leading, spacing: 9) {
+                    ForEach(vm.subjectData.prefix(6)) { d in
+                        HStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(d.color)
+                                .frame(width: 10, height: 10)
+                            Text(d.subject)
+                                .font(.caption)
+                                .foregroundColor(.nestDark)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(formatHours(d.minutes))
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    if vm.subjectData.count > 6 {
+                        Text("+\(vm.subjectData.count - 6) more")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    // MARK: - Streak Line Chart Card
+
+    private var streakLineCard: some View {
+        AnalyticsCard(title: "30-Day Study Trend", icon: "waveform.path.ecg") {
+            if vm.streakLineData.allSatisfy({ $0.minutes == 0 }) {
+                emptyState("Start studying to see your trend")
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+
+                    // Streak summary chips
+                    HStack(spacing: 12) {
+                        StreakChip(
+                            icon:  "flame.fill",
+                            color: .orange,
+                            value: "\(vm.streakDays)d",
+                            label: "Current"
+                        )
+                        StreakChip(
+                            icon:  "trophy.fill",
+                            color: .nestPurple,
+                            value: "\(vm.longestStreak)d",
+                            label: "Longest"
+                        )
+                        StreakChip(
+                            icon:  "checkmark.circle.fill",
+                            color: .green,
+                            value: "\(vm.streakLineData.filter { $0.hasActivity }.count)",
+                            label: "Active days"
+                        )
+                    }
+
+                    // Line + Area chart
+                    Chart(vm.streakLineData) { point in
+                        // Shaded area under the line
+                        AreaMark(
+                            x: .value("Date", point.date),
+                            y: .value("Minutes", point.minutes)
+                        )
+                        .foregroundStyle(Color.nestPurple.opacity(0.15))
+                        .interpolationMethod(.catmullRom)
+
+                        // Main line
+                        LineMark(
+                            x: .value("Date", point.date),
+                            y: .value("Minutes", point.minutes)
+                        )
+                        .foregroundStyle(Color.nestPurple)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+                        .interpolationMethod(.catmullRom)
+
+                        // Activity dot — only on days with study time
+                        if point.hasActivity {
+                            PointMark(
+                                x: .value("Date", point.date),
+                                y: .value("Minutes", point.minutes)
+                            )
+                            .symbolSize(36)
+                            .foregroundStyle(Color.nestPink)
+                        }
+                    }
+                    .frame(height: 180)
+                    .chartXAxis {
+                        // Show a label every ~7 days to avoid crowding
+                        AxisMarks(values: stride(from: 0, through: 29, by: 7).compactMap {
+                            Calendar.current.date(byAdding: .day, value: -$0, to: Date())
+                        }) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3]))
+                                .foregroundStyle(Color.gray.opacity(0.3))
+                            AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                                .font(.caption2)
+                                .foregroundStyle(Color.gray)
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks(values: .automatic) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3]))
+                                .foregroundStyle(Color.gray.opacity(0.3))
+                            AxisValueLabel {
+                                if let mins = value.as(Int.self) {
+                                    Text("\(mins)m")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.gray)
+                                }
+                            }
+                        }
+                    }
+                    // Rule mark for "today" reference line
+                    .chartOverlay { proxy in
+                        GeometryReader { geo in
+                            if let todayX = proxy.position(forX: Calendar.current.startOfDay(for: Date())) {
+                                Rectangle()
+                                    .fill(Color.nestPink.opacity(0.4))
+                                    .frame(width: 1.5, height: geo.size.height)
+                                    .position(x: todayX, y: geo.size.height / 2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func emptyState(_ message: String) -> some View {
+        Text(message)
+            .font(.caption)
+            .foregroundColor(.gray)
+            .frame(maxWidth: .infinity)
+            .frame(height: 120)
+    }
+
+    /// Converts minutes to "1h 30m" or "45m" string.
+    private func formatHours(_ minutes: Int) -> String {
+        guard minutes > 0 else { return "0m" }
+        let h = minutes / 60
+        let m = minutes % 60
+        if h == 0 { return "\(m)m" }
+        if m == 0 { return "\(h)h" }
+        return "\(h)h \(m)m"
+    }
 }
+
+// MARK: - Reusable Card Container
+
+private struct AnalyticsCard<Content: View>: View {
+    let title:   String
+    let icon:    String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundColor(.nestPurple)
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.nestDark)
+            }
+            content()
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(18)
+        .shadow(color: Color.nestPurple.opacity(0.08), radius: 8, x: 0, y: 4)
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Summary Stat Block
 
 struct SummaryStatBlock: View {
     let value: String
     let label: String
-    let icon: String
+    let icon:  String
 
     var body: some View {
         VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(.white.opacity(0.8))
             Text(value)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 9))
                 .foregroundColor(.white.opacity(0.75))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
     }
+}
+
+// MARK: - Streak Chip
+
+private struct StreakChip: View {
+    let icon:  String
+    let color: Color
+    let value: String
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.nestDark)
+                Text(label)
+                    .font(.system(size: 9))
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.10))
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    AnalyticsView()
 }

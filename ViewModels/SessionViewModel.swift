@@ -2,29 +2,40 @@
 //  SessionViewModel.swift
 //  StudyNest
 //
+//  Offline-first: reads Core Data immediately, syncs Firestore in background.
+//
 
 import Foundation
 import Combine
 import EventKit
 import FirebaseFirestore
+import FirebaseAuth
 
-// NOTE: @MainActor is NOT on the class — it conflicts with ObservableObject
-// synthesis in some Xcode versions. Individual async methods publish UI
-// updates via MainActor.run, and since SwiftUI's .task / Task {} contexts
-// already run on the main actor, @Published updates land on the main thread.
 final class SessionViewModel: ObservableObject {
 
-    // MARK: - Published State
+    // MARK: - Published
     @Published var sessions: [StudySession] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var showSuccess = false
     @Published var successMessage = ""
 
-    // MARK: - Private
-    private let firestore = FirestoreService.shared
+    // MARK: - Dependencies
+    private let sync      = SyncService.shared
     private let eventStore = EKEventStore()
-    private var userId: String { AuthService.shared.currentUserId ?? "" }
+    private var userId: String { Auth.auth().currentUser?.uid ?? "" }
+    private var cancellables = Set<AnyCancellable>()
+
+    // MARK: - Init
+    init() {
+        // Whenever SyncService finishes a sync, refresh our local list
+        sync.$isSyncing
+            .filter { !$0 }           // just finished syncing
+            .dropFirst()              // ignore initial false
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.loadFromCoreData() }
+            .store(in: &cancellables)
+    }
 
     // MARK: - Computed
     var completedSessions: [StudySession] { sessions.filter { $0.isCompleted } }
@@ -42,15 +53,28 @@ final class SessionViewModel: ObservableObject {
     }
 
     // MARK: - Load
+    //
+    // Step 1 — instantly load from Core Data (works offline, zero latency)
+    // Step 2 — if online, trigger a Firestore sync in the background;
+    //           the Combine sink above will reload once sync finishes.
     func loadSessions() async {
-        let uid = userId
-        guard !uid.isEmpty else { return }   // not logged in yet — skip silently
-        await MainActor.run { isLoading = true }
-        let fetched = (try? await firestore.fetchSessions(for: uid)) ?? []
+        guard !userId.isEmpty else { return }
+
         await MainActor.run {
-            sessions = fetched
-            isLoading = false
+            isLoading = true
+            loadFromCoreData()        // show cached data immediately
         }
+
+        if sync.isOnline {
+            await sync.sync()         // push pending + pull fresh data
+        }
+
+        await MainActor.run { isLoading = false }
+    }
+
+    // Read Core Data and publish to the view
+    private func loadFromCoreData() {
+        sessions = sync.fetchSessionsLocally(for: userId)
     }
 
     // MARK: - Add Session
@@ -71,53 +95,83 @@ final class SessionViewModel: ObservableObject {
             subject: subject, startTime: startTime, endTime: endTime, notes: notes
         )
 
-        // 2. Save to Firestore
-        let session = StudySession(
-            userId: userId,
-            subject: subject,
-            startTime: startTime,
-            endTime: endTime,
-            notes: notes,
-            isCompleted: false,
+        // 2. Build model with a local UUID (Firestore doc id if online)
+        var session = StudySession(
+            id:              UUID().uuidString,
+            userId:          userId,
+            subject:         subject,
+            startTime:       startTime,
+            endTime:         endTime,
+            notes:           notes,
+            isCompleted:     false,
             calendarEventId: calendarEventId,
-            createdAt: Date()
+            createdAt:       Date()
         )
 
-        do {
-            try await firestore.saveSesion(session)
-            await loadSessions()
-            await MainActor.run {
-                successMessage = "Session added to calendar ✓"
-                showSuccess = true
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = "Could not save session: \(error.localizedDescription)"
+        // 3. Save to Core Data immediately (offline-safe)
+        sync.saveSessionLocally(session)
+
+        // 4. If online push to Firestore right now; otherwise it will
+        //    sync automatically when connectivity returns.
+        if sync.isOnline {
+            do {
+                let ref = try await Firestore.firestore()
+                    .collection("sessions")
+                    .addDocument(data: session.toFirestoreData())
+                // Update Core Data with the real Firestore ID
+                session.id = ref.documentID
+                sync.saveSessionLocally(session)
+            } catch {
+                // Local copy already saved — will retry on reconnect
+                print("Firestore write failed (will retry): \(error)")
             }
         }
 
-        await MainActor.run { isLoading = false }
+        await MainActor.run {
+            loadFromCoreData()
+            successMessage = sync.isOnline
+                ? "Session saved & synced to calendar ✓"
+                : "Session saved offline — will sync when online"
+            showSuccess = true
+            isLoading = false
+        }
     }
 
     // MARK: - Mark Complete
     func markComplete(_ session: StudySession) async {
-        guard let idx = sessions.firstIndex(where: { $0.id == session.id }) else { return }
-        await MainActor.run { sessions[idx].isCompleted = true }
-        let updated = sessions[idx]
-        try? await firestore.saveSesion(updated)
+        var updated = session
+        updated.isCompleted = true
+        sync.saveSessionLocally(updated)      // Core Data
+
+        if sync.isOnline, let id = session.id {
+            try? await Firestore.firestore()
+                .collection("sessions").document(id)
+                .updateData(["isCompleted": true])
+        }
+
+        await MainActor.run { loadFromCoreData() }
     }
 
     // MARK: - Delete Session
     func deleteSession(_ session: StudySession) async {
-        guard let id = session.id else { return }
         if let calId = session.calendarEventId { removeFromCalendar(eventId: calId) }
-        try? await firestore.deleteSession(id: id)
-        await MainActor.run { sessions.removeAll { $0.id == id } }
+
+        if let id = session.id {
+            sync.deleteSessionLocally(id: id)  // Core Data (marks pendingDelete if offline)
+
+            if sync.isOnline {
+                try? await Firestore.firestore().collection("sessions").document(id).delete()
+            }
+        }
+
+        await MainActor.run { loadFromCoreData() }
     }
 
     // MARK: - EventKit
 
-    private func addToCalendar(subject: String, startTime: Date, endTime: Date, notes: String) async -> String? {
+    private func addToCalendar(
+        subject: String, startTime: Date, endTime: Date, notes: String
+    ) async -> String? {
         let granted = await withCheckedContinuation { cont in
             if #available(iOS 17, *) {
                 eventStore.requestFullAccessToEvents { ok, _ in cont.resume(returning: ok) }
@@ -133,8 +187,8 @@ final class SessionViewModel: ObservableObject {
         event.endDate   = endTime
         event.notes     = notes.isEmpty ? nil : notes
         event.calendar  = eventStore.defaultCalendarForNewEvents
-        event.addAlarm(EKAlarm(relativeOffset: -86_400)) // 24 hr
-        event.addAlarm(EKAlarm(relativeOffset: -3_600))  // 1 hr
+        event.addAlarm(EKAlarm(relativeOffset: -86_400))  // 24 hr
+        event.addAlarm(EKAlarm(relativeOffset: -3_600))   // 1 hr
 
         try? eventStore.save(event, span: .thisEvent)
         return event.eventIdentifier

@@ -1,10 +1,20 @@
+//
+//  StudyNestApp.swift
+//  StudyNest
+//
+
 import SwiftUI
 import FirebaseCore
+import CoreData
 
 @main
 struct StudyNestApp: App {
-    @StateObject private var authVM = AuthViewModel()
-    @State private var showSplash   = true
+    @StateObject private var authVM  = AuthViewModel()
+    @StateObject private var syncSvc = SyncService.shared
+    @State private var showSplash    = true
+
+    // Core Data persistent container
+    private let persistence = PersistenceController.shared
 
     init() {
         FirebaseApp.configure()
@@ -13,29 +23,45 @@ struct StudyNestApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                if showSplash {
-                    SplashScreenView()
-                        .transition(.opacity)
-                } else {
-                    if authVM.isLoggedIn {
-                        MainTabView()
-                            .environmentObject(authVM)
+            ZStack(alignment: .top) {
+
+                // ── Main content ──────────────────────────────────
+                ZStack {
+                    if showSplash {
+                        SplashScreenView()
                             .transition(.opacity)
                     } else {
-                        LoginView()
-                            .environmentObject(authVM)
-                            .transition(.opacity)
+                        if authVM.isLoggedIn {
+                            MainTabView()
+                                .environmentObject(authVM)
+                                .environmentObject(syncSvc)
+                                .transition(.opacity)
+                                // Trigger first sync once user is logged in
+                                .task { await SyncService.shared.sync() }
+                        } else {
+                            LoginView()
+                                .environmentObject(authVM)
+                                .transition(.opacity)
+                        }
                     }
                 }
-            }
-            .animation(.easeInOut(duration: 0.4), value: showSplash)
-            .animation(.easeInOut(duration: 0.3), value: authVM.isLoggedIn)
-            .onAppear {
-                // Show splash for 2.2 seconds then transition
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                    withAnimation { showSplash = false }
+                .animation(.easeInOut(duration: 0.4), value: showSplash)
+                .animation(.easeInOut(duration: 0.3), value: authVM.isLoggedIn)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                        withAnimation { showSplash = false }
+                    }
                 }
+                // Inject Core Data context into the entire view hierarchy
+                .environment(
+                    \.managedObjectContext,
+                     persistence.viewContext
+                )
+
+                // ── Offline / syncing banner (top overlay) ────────
+                OfflineBanner()
+                    .animation(.easeInOut(duration: 0.3), value: syncSvc.isOnline)
+
             }
         }
     }
