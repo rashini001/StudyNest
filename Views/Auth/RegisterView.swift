@@ -93,7 +93,6 @@ struct RegisterView: View {
     }
 }
 
-// MARK: - Reusable field components
 struct NestField: View {
     let label: String
     let placeholder: String

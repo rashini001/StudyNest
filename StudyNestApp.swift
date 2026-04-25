@@ -1,8 +1,3 @@
-//
-//  StudyNestApp.swift
-//  StudyNest
-//
-
 import SwiftUI
 import FirebaseCore
 import CoreData
@@ -13,19 +8,17 @@ struct StudyNestApp: App {
     @StateObject private var syncSvc = SyncService.shared
     @State private var showSplash    = true
 
-    // Core Data persistent container
     private let persistence = PersistenceController.shared
 
     init() {
         FirebaseApp.configure()
-        NotificationService.shared.requestAuthorization()
     }
 
     var body: some Scene {
         WindowGroup {
             ZStack(alignment: .top) {
 
-                // ── Main content ──────────────────────────────────
+                // Main content
                 ZStack {
                     if showSplash {
                         SplashScreenView()
@@ -36,7 +29,6 @@ struct StudyNestApp: App {
                                 .environmentObject(authVM)
                                 .environmentObject(syncSvc)
                                 .transition(.opacity)
-                                // Trigger first sync once user is logged in
                                 .task { await SyncService.shared.sync() }
                         } else {
                             LoginView()
@@ -48,20 +40,20 @@ struct StudyNestApp: App {
                 .animation(.easeInOut(duration: 0.4), value: showSplash)
                 .animation(.easeInOut(duration: 0.3), value: authVM.isLoggedIn)
                 .onAppear {
+                
+                    Task {
+                        await NotificationService.shared.requestAuthorization()
+                    }
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
                         withAnimation { showSplash = false }
                     }
                 }
-                // Inject Core Data context into the entire view hierarchy
-                .environment(
-                    \.managedObjectContext,
-                     persistence.viewContext
-                )
+                .environment(\.managedObjectContext, persistence.viewContext)
 
-                // ── Offline / syncing banner (top overlay) ────────
+                //  Offline
                 OfflineBanner()
                     .animation(.easeInOut(duration: 0.3), value: syncSvc.isOnline)
-
             }
         }
     }

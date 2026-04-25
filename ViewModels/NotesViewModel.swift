@@ -19,7 +19,7 @@ final class NotesViewModel: ObservableObject {
         let subjects = Set(notes.map { $0.subject }).sorted()
         return ["All"] + subjects
     }
-
+    
     var filteredNotes: [PDFNote] {
         if selectedSubject == "All" { return notes }
         return notes.filter { $0.subject == selectedSubject }
@@ -30,15 +30,16 @@ final class NotesViewModel: ObservableObject {
     private let firestore = FirestoreService.shared
     private var userId: String { AuthService.shared.currentUserId ?? "" }
 
-    //Auth
+    private var hasLoadedNotes = false
 
     func authenticate() async {
         let ok = await biometric.authenticate(reason: "Unlock your PDF Notes Vault")
         isAuthenticated = ok
-        if ok { await loadNotes() }
+        if ok && !hasLoadedNotes {
+            await loadNotes()
+            hasLoadedNotes = true
+        }
     }
-
-    //Load
 
     func loadNotes() async {
         isLoading = true
@@ -50,13 +51,13 @@ final class NotesViewModel: ObservableObject {
         isLoading = false
     }
 
-    //Scan (VisionKit)
+    // Scan (VisionKit)
 
     func processScan(images: [UIImage], title: String, subject: String) async {
         isLoading = true
         do {
             let (fileName, pageCount) = try pdfLocal.saveScan(images: images, title: title)
-            let note = PDFNote(
+            var note = PDFNote(
                 userId: userId,
                 title: title,
                 subject: subject,
@@ -65,9 +66,12 @@ final class NotesViewModel: ObservableObject {
                 isScanned: true,
                 uploadedAt: Date()
             )
-            try await firestore.saveNote(note)
-            notes.insert(note, at: 0)
 
+            let savedId = try await firestore.saveNoteReturningId(note)
+            note.id = savedId
+            if !notes.contains(where: { $0.id == savedId }) {
+                notes.insert(note, at: 0)
+            }
             await runOCR(on: images)
         } catch {
             errorMessage = error.localizedDescription
@@ -75,12 +79,11 @@ final class NotesViewModel: ObservableObject {
         isLoading = false
     }
 
-    //Import PDF from URL
+    // Import PDF  (UIDocumentPickerViewController)
 
     func importPDFFromURL(_ url: URL, subject: String) async {
         isLoading = true
         do {
-            // Security-scoped access for Files app URLs
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
 
@@ -89,7 +92,7 @@ final class NotesViewModel: ObservableObject {
             let fileName = try pdfLocal.savePDF(data: data, title: title)
             let pdfDoc = PDFDocument(data: data)
 
-            let note = PDFNote(
+            var note = PDFNote(
                 userId: userId,
                 title: title,
                 subject: subject,
@@ -98,20 +101,23 @@ final class NotesViewModel: ObservableObject {
                 isScanned: false,
                 uploadedAt: Date()
             )
-            try await firestore.saveNote(note)
-            notes.insert(note, at: 0)
+            let savedId = try await firestore.saveNoteReturningId(note)
+            note.id = savedId
+
+            if !notes.contains(where: { $0.id == savedId }) {
+                notes.insert(note, at: 0)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
     }
-
     func importPDF(data: Data, title: String, subject: String) async {
         isLoading = true
         do {
             let fileName = try pdfLocal.savePDF(data: data, title: title)
             let pdfDoc = PDFDocument(data: data)
-            let note = PDFNote(
+            var note = PDFNote(
                 userId: userId,
                 title: title,
                 subject: subject,
@@ -120,15 +126,16 @@ final class NotesViewModel: ObservableObject {
                 isScanned: false,
                 uploadedAt: Date()
             )
-            try await firestore.saveNote(note)
-            notes.insert(note, at: 0)
+            let savedId = try await firestore.saveNoteReturningId(note)
+            note.id = savedId
+            if !notes.contains(where: { $0.id == savedId }) {
+                notes.insert(note, at: 0)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
     }
-
-    //Delete
 
     func deleteNote(_ note: PDFNote) async {
         guard let id = note.id else { return }
@@ -137,7 +144,7 @@ final class NotesViewModel: ObservableObject {
         notes.removeAll { $0.id == id }
     }
 
-    //OCR
+    // OCR
 
     func extractOCR(for note: PDFNote) async {
         guard let pdfDoc = pdfLocal.loadPDF(fileName: note.localFileName) else {
@@ -155,8 +162,6 @@ final class NotesViewModel: ObservableObject {
         await runOCR(on: images)
         isLoading = false
     }
-
-    //Internal OCR runner
 
     private func runOCR(on images: [UIImage]) async {
         var allObs: [OCRTextObservation] = []
@@ -186,18 +191,16 @@ final class NotesViewModel: ObservableObject {
             }
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
-
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             try? handler.perform([request])
         }
     }
 
-    //Save plain-text note from OCR
+    // Save plain-text note from OCR
 
     func saveTextNote(text: String, title: String) async {
         isLoading = true
         do {
-            let textData = text.data(using: .utf8) ?? Data()
             let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
             let pdfData = renderer.pdfData { ctx in
                 ctx.beginPage()
@@ -210,7 +213,7 @@ final class NotesViewModel: ObservableObject {
                 text.draw(in: rect, withAttributes: attrs)
             }
             let fileName = try pdfLocal.savePDF(data: pdfData, title: title)
-            let note = PDFNote(
+            var note = PDFNote(
                 userId: userId,
                 title: title,
                 subject: selectedSubject == "All" ? "General" : selectedSubject,
@@ -219,16 +222,16 @@ final class NotesViewModel: ObservableObject {
                 isScanned: false,
                 uploadedAt: Date()
             )
-            try await firestore.saveNote(note)
-            notes.insert(note, at: 0)
+            let savedId = try await firestore.saveNoteReturningId(note)
+            note.id = savedId
+            if !notes.contains(where: { $0.id == savedId }) {
+                notes.insert(note, at: 0)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
     }
-
-    //Helpers
-
     private func renderPDFPage(_ page: PDFPage) -> UIImage? {
         let pageRect = page.bounds(for: .mediaBox)
         let renderer = UIGraphicsImageRenderer(size: pageRect.size)

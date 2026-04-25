@@ -1,8 +1,3 @@
-//
-//  DeckDetailView.swift
-//  StudyNest
-//
-
 import SwiftUI
 
 struct DeckDetailView: View {
@@ -19,7 +14,7 @@ struct DeckDetailView: View {
             Color(.systemGroupedBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Deck header card
+        
                 deckHeader
                     .padding(.horizontal, 18)
                     .padding(.top, 14)
@@ -36,8 +31,6 @@ struct DeckDetailView: View {
                     cardsList
                 }
             }
-
-            // Floating Start Review button — only shown when cards exist
             if !vm.currentCards.isEmpty {
                 Button {
                     showingReview = true
@@ -69,7 +62,6 @@ struct DeckDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddCard, onDismiss: {
-            // Reload cards after adding
             Task { await vm.loadCards(for: deck) }
         }) {
             AddFlashcardView(deck: deck, vm: vm)
@@ -81,8 +73,6 @@ struct DeckDetailView: View {
             await vm.loadCards(for: deck)
         }
     }
-
-    // MARK: - Deck Header
 
     private var deckHeader: some View {
         HStack(spacing: 16) {
@@ -115,8 +105,6 @@ struct DeckDetailView: View {
             }
 
             Spacer()
-
-            // Accuracy badge (if any cards attempted)
             let attempted = vm.currentCards.filter { $0.timesAttempted > 0 }
             if !attempted.isEmpty {
                 let avg = attempted.map { $0.accuracy }.reduce(0, +) / Double(attempted.count)
@@ -140,7 +128,7 @@ struct DeckDetailView: View {
         .shadow(color: Color.nestPurple.opacity(0.08), radius: 8, y: 3)
     }
 
-    // MARK: - Cards List
+    // Cards List
 
     private var cardsList: some View {
         ScrollView(showsIndicators: false) {
@@ -151,11 +139,11 @@ struct DeckDetailView: View {
             }
             .padding(.horizontal, 18)
             .padding(.top, 10)
-            .padding(.bottom, 110) // space for floating button
+            .padding(.bottom, 110)
         }
     }
 
-    // MARK: - Empty State
+    // Empty State
 
     private var emptyCardsState: some View {
         VStack(spacing: 20) {
@@ -194,14 +182,14 @@ struct DeckDetailView: View {
     }
 }
 
-// MARK: - Card Row
+// Card Row
 
 struct CardRow: View {
     let card: Flashcard
 
     var body: some View {
         HStack(spacing: 12) {
-            // Left accent
+           
             LinearGradient(colors: [.nestPink, .nestPurple], startPoint: .top, endPoint: .bottom)
                 .frame(width: 4)
                 .clipShape(Capsule())
@@ -220,8 +208,6 @@ struct CardRow: View {
             }
 
             Spacer()
-
-            // Per-card accuracy badge (only if attempted)
             if card.timesAttempted > 0 {
                 VStack(spacing: 2) {
                     Text("\(Int(card.accuracy * 100))%")

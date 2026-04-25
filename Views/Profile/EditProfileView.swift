@@ -17,7 +17,6 @@ struct EditProfileView: View {
             ScrollView {
                 VStack(spacing: 20) {
 
-                    // Avatar preview
                     ZStack {
                         Circle()
                             .fill(
@@ -35,7 +34,7 @@ struct EditProfileView: View {
                     }
                     .padding(.top, 12)
 
-                    // ── Name section ─────────────────────────────────────
+                    // Name section
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Display Name", systemImage: "person.fill")
                             .font(.caption).foregroundColor(.nestPurple)
@@ -46,7 +45,7 @@ struct EditProfileView: View {
                             .cornerRadius(12)
                     }
 
-                    // ── Password section ─────────────────────────────────
+                    // Password section
                     VStack(alignment: .leading, spacing: 8) {
                         Label("New Password (optional)", systemImage: "lock.fill")
                             .font(.caption).foregroundColor(.nestPurple)
@@ -62,7 +61,7 @@ struct EditProfileView: View {
                             .cornerRadius(12)
                     }
 
-                    // ── Messages ─────────────────────────────────────────
+                    // Messages
                     if !successMessage.isEmpty {
                         Label(successMessage, systemImage: "checkmark.circle.fill")
                             .foregroundColor(.green)
@@ -74,7 +73,7 @@ struct EditProfileView: View {
                             .font(.caption)
                     }
 
-                    // ── Save button ───────────────────────────────────────
+                    // Save button
                     Button {
                         Task { await saveChanges() }
                     } label: {
@@ -117,7 +116,7 @@ struct EditProfileView: View {
         }
     }
 
-    // MARK: - Helpers
+    // Helpers
 
     private func initials(from name: String) -> String {
         let parts = name.split(separator: " ")
@@ -132,7 +131,6 @@ struct EditProfileView: View {
 
         let user = Auth.auth().currentUser
 
-        // Update display name
         if !displayName.isEmpty, displayName != authVM.profileDisplayName {
             let changeRequest = user?.createProfileChangeRequest()
             changeRequest?.displayName = displayName
@@ -147,7 +145,6 @@ struct EditProfileView: View {
             }
         }
 
-        // Update password (only if provided)
         if !newPassword.isEmpty {
             guard newPassword == confirmPassword else {
                 errorMessage = "Passwords do not match."

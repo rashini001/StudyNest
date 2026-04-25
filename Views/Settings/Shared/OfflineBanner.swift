@@ -1,16 +1,3 @@
-//
-//  OfflineBanner.swift
-//  StudyNest
-//
-//  A slim banner that appears at the top of any view when the device
-//  is offline. Drop it into a ZStack or .overlay on your root view.
-//
-//  Usage in SessionListView (or any view):
-//
-//      .overlay(alignment: .top) {
-//          OfflineBanner()
-//      }
-//
 
 import SwiftUI
 

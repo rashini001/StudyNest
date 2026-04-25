@@ -49,18 +49,22 @@ final class SessionViewModel: ObservableObject {
             loadFromCoreData()
         }
 
-        if sync.isOnline {
-            await sync.sync()
-        }
+        if sync.isOnline { await sync.sync() }
 
         await MainActor.run { isLoading = false }
     }
 
     private func loadFromCoreData() {
-        sessions = sync.fetchSessionsLocally(for: userId)
+        let raw = sync.fetchSessionsLocally(for: userId)
+        var seen = Set<String>()
+        sessions = raw.filter { session in
+            guard let id = session.id else { return true }
+            return seen.insert(id).inserted
+        }
     }
 
-    //Add Session
+    // Add Session
+
     func addSession(subject: String, startTime: Date, endTime: Date, notes: String) async {
         guard !subject.trimmingCharacters(in: .whitespaces).isEmpty else {
             await MainActor.run { errorMessage = "Please enter a subject." }
@@ -89,7 +93,8 @@ final class SessionViewModel: ObservableObject {
             createdAt:       Date()
         )
 
-        sync.saveSessionLocally(session)
+        let notifIds = NotificationService.shared.scheduleSessionNotifications(for: session)
+        session.notificationIds = notifIds
 
         if sync.isOnline {
             do {
@@ -97,25 +102,27 @@ final class SessionViewModel: ObservableObject {
                     .collection("sessions")
                     .addDocument(data: session.toFirestoreData())
                 session.id = ref.documentID
-                sync.saveSessionLocally(session)
             } catch {
                 print("Firestore write failed (will retry): \(error)")
             }
         }
+
+        sync.saveSessionLocally(session)
 
         await MainActor.run {
             loadFromCoreData()
             successMessage = sync.isOnline
                 ? "Session saved & synced to calendar ✓"
                 : "Session saved offline — will sync when online"
-            showSuccess  = true
-            isLoading    = false
+            showSuccess = true
+            isLoading   = false
         }
 
         refreshWidget()
     }
 
     // Mark Complete
+
     func markComplete(_ session: StudySession) async {
         var updated = session
         updated.isCompleted = true
@@ -131,9 +138,13 @@ final class SessionViewModel: ObservableObject {
         refreshWidget()
     }
 
-    //Delete Session
+    // Delete Session
+
     func deleteSession(_ session: StudySession) async {
         if let calId = session.calendarEventId { removeFromCalendar(eventId: calId) }
+        if let id = session.id {
+            NotificationService.shared.cancelSessionNotifications(sessionId: id)
+        }
 
         if let id = session.id {
             sync.deleteSessionLocally(id: id)
@@ -144,13 +155,10 @@ final class SessionViewModel: ObservableObject {
         }
 
         await MainActor.run { loadFromCoreData() }
-
         refreshWidget()
     }
 
-    private func refreshWidget() {
-        WidgetCenter.shared.reloadAllTimelines()
-    }
+    private func refreshWidget() { WidgetCenter.shared.reloadAllTimelines() }
 
     // EventKit
 
@@ -166,13 +174,13 @@ final class SessionViewModel: ObservableObject {
         }
         guard granted else { return nil }
 
-        let event = EKEvent(eventStore: eventStore)
+        let event       = EKEvent(eventStore: eventStore)
         event.title     = "📚 Study: \(subject)"
         event.startDate = startTime
         event.endDate   = endTime
         event.notes     = notes.isEmpty ? nil : notes
         event.calendar  = eventStore.defaultCalendarForNewEvents
-        event.addAlarm(EKAlarm(relativeOffset: -86_400))  
+        event.addAlarm(EKAlarm(relativeOffset: -86_400))
         event.addAlarm(EKAlarm(relativeOffset: -3_600))
 
         try? eventStore.save(event, span: .thisEvent)

@@ -4,19 +4,18 @@ struct PomodoroView: View {
     @StateObject private var vm = PomodoroViewModel()
     @EnvironmentObject var authVM: AuthViewModel
 
-    // Controls the phase-end banner overlay
     @State private var showPhaseBanner = false
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // ── Background ──
+               
                 Color(.systemGroupedBackground).ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 28) {
 
-                        // MARK: - Subject Tag Field
+                        // Subject Tag Field
                         HStack(spacing: 10) {
                             Image(systemName: "tag.fill")
                                 .foregroundColor(.nestPurple)
@@ -32,7 +31,7 @@ struct PomodoroView: View {
                         .shadow(color: Color.nestPurple.opacity(0.06), radius: 4, x: 0, y: 2)
                         .padding(.horizontal)
 
-                        // MARK: - Phase Badge
+                        // Phase Badge
                         HStack(spacing: 6) {
                             Text(vm.phase.emoji)
                                 .font(.caption)
@@ -47,14 +46,13 @@ struct PomodoroView: View {
                         .cornerRadius(20)
                         .animation(.easeInOut, value: vm.phase)
 
-                        // MARK: - Timer Ring
+                        // Timer Ring
                         ZStack {
-                            // Outer track
+                          
                             Circle()
                                 .stroke(Color.nestLightPink, lineWidth: 18)
                                 .frame(width: 250, height: 250)
 
-                            // Break phase gets a calm green tint track
                             if vm.isOnBreak {
                                 Circle()
                                     .stroke(Color.green.opacity(0.15), lineWidth: 18)
@@ -93,7 +91,6 @@ struct PomodoroView: View {
                                 )
                                 .frame(width: 220, height: 220)
 
-                            // Time + status text
                             VStack(spacing: 6) {
                                 Text(vm.formattedTime)
                                     .font(.system(size: 54, weight: .bold, design: .rounded))
@@ -110,7 +107,7 @@ struct PomodoroView: View {
                             }
                         }
 
-                        // MARK: - Cycle Dots
+                        //  Cycle Dots
                         VStack(spacing: 6) {
                             HStack(spacing: 12) {
                                 ForEach(0..<4, id: \.self) { i in
@@ -130,7 +127,7 @@ struct PomodoroView: View {
                                 .foregroundColor(.gray)
                         }
 
-                        // MARK: - Ambient Sound Selector
+                        // Ambient Sound Selector
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 Image(systemName: "speaker.wave.2.fill")
@@ -189,7 +186,7 @@ struct PomodoroView: View {
                         .shadow(color: Color.nestPurple.opacity(0.06), radius: 6, x: 0, y: 3)
                         .padding(.horizontal)
 
-                        // MARK: - Controls
+                        // Controls
                         HStack(spacing: 36) {
 
                             // Reset
@@ -200,7 +197,7 @@ struct PomodoroView: View {
                                 size: 54
                             ) { vm.reset() }
 
-                            // Play / Pause (large centre button)
+                            // Play / Pause
                             Button(action: { vm.isRunning ? vm.pause() : vm.start() }) {
                                 ZStack {
                                     Circle()
@@ -240,7 +237,7 @@ struct PomodoroView: View {
                     .padding(.vertical, 20)
                 }
 
-                // MARK: - Phase End Banner Overlay
+                // Phase End Banner Overlay
                 if showPhaseBanner {
                     PhaseBanner(phase: vm.lastCompletedPhase) {
                         withAnimation { showPhaseBanner = false }
@@ -251,18 +248,18 @@ struct PomodoroView: View {
             }
             .navigationTitle("Focus Timer")
             .navigationBarTitleDisplayMode(.large)
-            // Show banner whenever phaseJustEnded flips
+            
             .onChange(of: vm.phaseJustEnded) { ended in
                 if ended {
                     withAnimation(.spring()) { showPhaseBanner = true }
                     vm.phaseJustEnded = false
-                    // Auto-hide after 3 seconds
+                  
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         withAnimation { showPhaseBanner = false }
                     }
                 }
             }
-            // Save record when user navigates away
+            
             .onDisappear {
                 Task {
                     await vm.saveRecord(
@@ -273,7 +270,7 @@ struct PomodoroView: View {
         }
     }
 
-    // MARK: - Helpers
+    // Helpers
 
     private var phaseBadgeColour: Color {
         switch vm.phase {
@@ -294,7 +291,7 @@ struct PomodoroView: View {
     }
 }
 
-// MARK: - Reusable Circle Control Button
+//  Reusable Circle Control Button
 
 private struct CircleControlButton: View {
     let icon: String
@@ -317,7 +314,7 @@ private struct CircleControlButton: View {
     }
 }
 
-// MARK: - Phase End Banner
+// Phase End Banner
 
 private struct PhaseBanner: View {
     let phase: PomodoroPhase

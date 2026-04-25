@@ -1,10 +1,3 @@
-//
-//  DeckListView.swift
-//  StudyNest
-//
-//  Themed to match the pink/purple StudyNest brand aesthetic.
-//
-
 import SwiftUI
 
 struct DeckListView: View {
@@ -57,7 +50,7 @@ struct DeckListView: View {
         }
     }
 
-    // MARK: - Loading
+    // Loading
 
     private var loadingView: some View {
         VStack(spacing: 14) {
@@ -70,13 +63,12 @@ struct DeckListView: View {
         }
     }
 
-    // MARK: - Deck List
+    // Deck List
 
     private var deckList: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 14) {
                 ForEach(vm.decks) { deck in
-                    // NavigationLink → DeckDetailView on tap
                     NavigationLink(destination: DeckDetailView(deck: deck, vm: vm)) {
                         DeckCard(deck: deck)
                     }
@@ -108,7 +100,7 @@ struct DeckListView: View {
         }
     }
 
-    // MARK: - Empty State
+    // Empty State
 
     private var emptyState: some View {
         VStack(spacing: 20) {
@@ -145,7 +137,7 @@ struct DeckListView: View {
         .padding(.horizontal, 40)
     }
 
-    // MARK: - Toolbar
+    // Toolbar
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
@@ -160,7 +152,7 @@ struct DeckListView: View {
         }
     }
 
-    // MARK: - Create Deck Sheet
+    // Create Deck Sheet
 
     private var createDeckSheet: some View {
         NavigationStack {
@@ -203,7 +195,7 @@ struct DeckListView: View {
     }
 }
 
-// MARK: - DeckCard
+// DeckCard
 
 struct DeckCard: View {
     let deck: FlashcardDeck
@@ -222,7 +214,6 @@ struct DeckCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // Left gradient accent bar
             LinearGradient(
                 colors: [.nestPink, .nestPurple],
                 startPoint: .top, endPoint: .bottom

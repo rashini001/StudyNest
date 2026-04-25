@@ -10,6 +10,7 @@ struct StudySession: Codable, Identifiable {
     var notes: String
     var isCompleted: Bool
     var calendarEventId: String?
+    var notificationIds: [String] = []  
     var createdAt: Date
 
     var computedDuration: Int {

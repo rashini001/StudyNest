@@ -4,11 +4,6 @@ import UIKit
 import UniformTypeIdentifiers
 import PhotosUI
 
-// MARK: - Smart Scanner
-// On a real device: VNDocumentCameraViewController (VisionKit)
-// On the simulator: PHPickerViewController (photo library, multi-select)
-// After either path, images flow into the same VisionKit OCR pipeline in NotesViewModel.
-
 struct AdaptiveDocumentScanner: View {
     var onScan: ([UIImage]) -> Void
 
@@ -24,8 +19,6 @@ struct AdaptiveDocumentScanner: View {
         #endif
     }
 }
-
-// MARK: - Real-device VisionKit Document Camera
 
 struct DocumentScannerView: UIViewControllerRepresentable {
     var onScan: ([UIImage]) -> Void
@@ -63,12 +56,6 @@ struct DocumentScannerView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - Simulator Scanner
-// Uses PHPickerViewController so the student can select multiple images
-// from the simulator's photo library (drag images from Finder into the
-// simulator Photos app first). The selected images are then passed into
-// the exact same VisionKit OCR pipeline as real scans.
-
 struct SimulatorScannerView: UIViewControllerRepresentable {
     var onScan: ([UIImage]) -> Void
 
@@ -77,7 +64,6 @@ struct SimulatorScannerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration()
         config.filter = .images
-        // Allow multiple pages to be selected — mimics multi-page document scan
         config.selectionLimit = 20
         config.preferredAssetRepresentationMode = .current
 
@@ -95,8 +81,6 @@ struct SimulatorScannerView: UIViewControllerRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
             guard !results.isEmpty else { return }
-
-            // Load all images in order, then call onScan once all are ready
             var images = [UIImage?](repeating: nil, count: results.count)
             let group = DispatchGroup()
 
@@ -115,8 +99,6 @@ struct SimulatorScannerView: UIViewControllerRepresentable {
         }
     }
 }
-
-// MARK: - Legacy single-image picker (kept for compatibility)
 
 struct SimulatorImagePicker: UIViewControllerRepresentable {
     var onScan: ([UIImage]) -> Void
@@ -149,10 +131,8 @@ struct SimulatorImagePicker: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - PDF Document Picker (UIDocumentPickerViewController)
-// Works on both simulator and real device.
-// On the simulator, add PDF files via Finder → drag into the simulator
-// Files app, or place them in the simulator's Documents directory.
+// PDF Document Picker 
+
 
 struct DocumentPickerView: UIViewControllerRepresentable {
     var onPick: (URL) -> Void

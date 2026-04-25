@@ -3,7 +3,7 @@ import PDFKit
 import UIKit
 import Vision
 
-// MARK: - PDF Viewer Screen
+// PDF Viewer Screen
 
 struct PDFViewerView: View {
     let note: PDFNote
@@ -22,7 +22,7 @@ struct PDFViewerView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // PDF canvas
+           
             if let doc = pdfDocument {
                 PDFKitView(
                     document: doc,
@@ -42,7 +42,6 @@ struct PDFViewerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // Annotation toolbar overlay
             if showAnnotationToolbar {
                 AnnotationToolbar(
                     selectedTool: $selectedTool,
@@ -58,14 +57,13 @@ struct PDFViewerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
-                // Page counter
+                
                 if totalPages > 0 {
                     Text("\(currentPage + 1)/\(totalPages)")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
 
-                // Annotation toggle
                 Button {
                     withAnimation(.spring(response: 0.3)) {
                         showAnnotationToolbar.toggle()
@@ -75,7 +73,6 @@ struct PDFViewerView: View {
                         .foregroundColor(.nestPurple)
                 }
 
-                // OCR (only for scanned notes)
                 if note.isScanned {
                     Button {
                         Task { await extractOCR() }
@@ -85,7 +82,6 @@ struct PDFViewerView: View {
                     }
                 }
 
-                // Share
                 if let doc = pdfDocument, let data = doc.dataRepresentation() {
                     ShareLink(item: data, preview: SharePreview(note.title)) {
                         Image(systemName: "square.and.arrow.up")
@@ -102,7 +98,7 @@ struct PDFViewerView: View {
         }
     }
 
-    // MARK: - OCR extraction
+    // OCR extraction
 
     private func extractOCR() async {
         guard let doc = pdfDocument else { return }
@@ -118,7 +114,7 @@ struct PDFViewerView: View {
             let obs = await recogniseText(in: img)
             allObs.append(contentsOf: obs)
         }
-        // Sort top-to-bottom (Vision origin is bottom-left, so higher minY = higher on page)
+        
         ocrResult = allObs.sorted { $0.boundingBox.minY > $1.boundingBox.minY }
         flashcardPairs = OCRService.autoPairToFlashcards(ocrResult)
         showOCR = true
@@ -155,7 +151,7 @@ struct PDFViewerView: View {
     }
 }
 
-// MARK: - PDFKit UIViewRepresentable
+// PDFKit UIViewRepresentable
 
 struct PDFKitView: UIViewRepresentable {
     let document: PDFDocument
@@ -171,7 +167,6 @@ struct PDFKitView: UIViewRepresentable {
         pdfView.displayDirection = .vertical
         pdfView.usePageViewController(false)
 
-        // Observe page changes
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.pageChanged(_:)),
@@ -179,7 +174,6 @@ struct PDFKitView: UIViewRepresentable {
             object: pdfView
         )
 
-        // Tap recogniser for annotation placement
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         tap.delegate = context.coordinator
         pdfView.addGestureRecognizer(tap)
@@ -198,7 +192,6 @@ struct PDFKitView: UIViewRepresentable {
         Coordinator(selectedTool: selectedTool, highlightColor: highlightColor)
     }
 
-    // MARK: - Coordinator
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         weak var pdfView: PDFView?
@@ -233,14 +226,14 @@ struct PDFKitView: UIViewRepresentable {
             case .note:
                 addTextNote(at: pagePoint, on: page)
             case .freehand:
-                break // handled by draw gesture
+                break
             case .none:
                 break
             }
         }
 
         private func addHighlight(at point: CGPoint, on page: PDFPage) {
-            // Create a small highlight rect centred on the tap point
+           
             let highlightRect = CGRect(x: point.x - 30, y: point.y - 8, width: 60, height: 16)
             let annotation = PDFAnnotation(bounds: highlightRect, forType: .highlight, withProperties: nil)
             annotation.color = highlightColor.withAlphaComponent(0.4)
@@ -256,13 +249,12 @@ struct PDFKitView: UIViewRepresentable {
             page.addAnnotation(annotation)
         }
 
-        // Allow tap alongside system gestures
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
     }
 }
 
-// MARK: - Annotation Toolbar
+// Annotation Toolbar
 
 enum AnnotationTool: Equatable {
     case none, highlight, note, freehand
@@ -297,7 +289,6 @@ struct AnnotationToolbar: View {
             }
             .padding(.horizontal, 4)
 
-            // Tool row
             HStack(spacing: 12) {
                 AnnotationToolButton(icon: "highlighter", label: "Highlight", tool: .highlight, selected: $selectedTool)
                 AnnotationToolButton(icon: "note.text.badge.plus", label: "Note", tool: .note, selected: $selectedTool)
@@ -341,7 +332,6 @@ struct AnnotationToolButton: View {
     }
 }
 
-// MARK: - UIColor extension for NestPurple theme (safe fallback)
 private extension UIColor {
     static var nestYellow: UIColor { UIColor.systemYellow }
 }

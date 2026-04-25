@@ -27,7 +27,7 @@ final class FirestoreService {
         try await db.collection("sessions").document(id).delete()
     }
 
-    //Study Spots
+    // Study Spots
 
     func saveSpot(_ spot: StudySpot) async throws {
         if let id = spot.id {
@@ -55,6 +55,15 @@ final class FirestoreService {
             try await db.collection("notes").document(id).setData(note.toFirestoreData())
         } else {
             _ = try await db.collection("notes").addDocument(data: note.toFirestoreData())
+        }
+    }
+    func saveNoteReturningId(_ note: PDFNote) async throws -> String {
+        if let id = note.id {
+            try await db.collection("notes").document(id).setData(note.toFirestoreData())
+            return id
+        } else {
+            let ref = try await db.collection("notes").addDocument(data: note.toFirestoreData())
+            return ref.documentID
         }
     }
 
@@ -91,7 +100,6 @@ final class FirestoreService {
     }
 
     func deleteDeck(id: String) async throws {
-        // Delete all subcollection cards first
         let cards = try await db.collection("decks").document(id)
             .collection("cards").getDocuments()
         for card in cards.documents {
@@ -99,8 +107,6 @@ final class FirestoreService {
         }
         try await db.collection("decks").document(id).delete()
     }
-
-    //Flashcards
 
     func saveCard(_ card: Flashcard, toDeck deckId: String) async throws {
         if let id = card.id {
@@ -116,20 +122,6 @@ final class FirestoreService {
         let snapshot = try await db.collection("decks")
             .document(deckId).collection("cards").getDocuments()
         return snapshot.documents.compactMap { Flashcard(document: $0) }
-    }
-
-    func deleteCard(id: String, fromDeck deckId: String) async throws {
-        try await db.collection("decks").document(deckId)
-            .collection("cards").document(id).delete()
-    }
-
-    func updateCardAccuracy(_ card: Flashcard, toDeck deckId: String) async throws {
-        guard let id = card.id else { return }
-        try await db.collection("decks").document(deckId)
-            .collection("cards").document(id).updateData([
-                "timesAttempted": card.timesAttempted,
-                "timesCorrect":   card.timesCorrect
-            ])
     }
 
     //Tasks
@@ -150,7 +142,7 @@ final class FirestoreService {
         return snapshot.documents.compactMap { StudyTask(document: $0) }
     }
 
-    //Pomodoro
+    // Pomodoro
 
     func savePomodoroRecord(_ record: PomodoroRecord) async throws {
         _ = try await db.collection("pomodoro").addDocument(data: record.toFirestoreData())

@@ -1,13 +1,3 @@
-//
-//  AnalyticsView.swift
-//  StudyNest
-//
-//  Visual Analytics Dashboard — three Swift Charts:
-//    1. Weekly Study Hours   → BarMark  (last 7 days)
-//    2. Subject Breakdown    → SectorMark / Donut
-//    3. Session Streak Trend → LineMark + AreaMark (last 30 days)
-//
-
 import SwiftUI
 import Charts
 
@@ -19,18 +9,18 @@ struct AnalyticsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
 
-                    // MARK: - Summary Banner
+                    // Summary Banner
                     summaryBanner
 
-                    // MARK: - Bar Chart: Weekly Study Hours
+                    // Bar Chart: Weekly Study Hours
                     weeklyBarCard
 
-                    // MARK: - Donut Chart: Subject Breakdown
+                    // Donut Chart: Subject Breakdown
                     if !vm.subjectData.isEmpty {
                         subjectDonutCard
                     }
 
-                    // MARK: - Line Chart: 30-Day Streak Trend
+                    // Line Chart: 30 Day Streak Trend
                     streakLineCard
 
                 }
@@ -51,7 +41,7 @@ struct AnalyticsView: View {
         }
     }
 
-    // MARK: - Summary Banner
+    // Summary Banner
 
     private var summaryBanner: some View {
         ZStack(alignment: .leading) {
@@ -61,8 +51,6 @@ struct AnalyticsView: View {
                 endPoint: .bottomTrailing
             )
             .cornerRadius(20)
-
-            // Decorative circle
             Circle()
                 .fill(Color.white.opacity(0.07))
                 .frame(width: 140)
@@ -106,7 +94,7 @@ struct AnalyticsView: View {
             .frame(height: 44)
     }
 
-    // MARK: - Bar Chart Card
+    // Bar Chart Card
 
     private var weeklyBarCard: some View {
         AnalyticsCard(title: "Weekly Study Hours", icon: "chart.bar.fill") {
@@ -150,7 +138,6 @@ struct AnalyticsView: View {
                     }
                 }
 
-                // Footer
                 HStack {
                     Image(systemName: "info.circle")
                         .font(.caption2)
@@ -164,13 +151,11 @@ struct AnalyticsView: View {
         }
     }
 
-    // MARK: - Donut Chart Card
+    // Donut Chart Card
 
     private var subjectDonutCard: some View {
         AnalyticsCard(title: "Subject Breakdown", icon: "chart.pie.fill") {
             HStack(alignment: .center, spacing: 20) {
-
-                // Donut
                 ZStack {
                     Chart(vm.subjectData) { data in
                         SectorMark(
@@ -182,8 +167,6 @@ struct AnalyticsView: View {
                         .cornerRadius(4)
                     }
                     .frame(width: 140, height: 140)
-
-                    // Centre label
                     VStack(spacing: 2) {
                         Text(formatHours(vm.subjectData.reduce(0) { $0 + $1.minutes }))
                             .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -193,8 +176,6 @@ struct AnalyticsView: View {
                             .foregroundColor(.gray)
                     }
                 }
-
-                // Legend
                 VStack(alignment: .leading, spacing: 9) {
                     ForEach(vm.subjectData.prefix(6)) { d in
                         HStack(spacing: 8) {
@@ -223,7 +204,7 @@ struct AnalyticsView: View {
         }
     }
 
-    // MARK: - Streak Line Chart Card
+    // Streak Line Chart Card
 
     private var streakLineCard: some View {
         AnalyticsCard(title: "30-Day Study Trend", icon: "waveform.path.ecg") {
@@ -231,8 +212,6 @@ struct AnalyticsView: View {
                 emptyState("Start studying to see your trend")
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-
-                    // Streak summary chips
                     HStack(spacing: 12) {
                         StreakChip(
                             icon:  "flame.fill",
@@ -253,18 +232,13 @@ struct AnalyticsView: View {
                             label: "Active days"
                         )
                     }
-
-                    // Line + Area chart
                     Chart(vm.streakLineData) { point in
-                        // Shaded area under the line
                         AreaMark(
                             x: .value("Date", point.date),
                             y: .value("Minutes", point.minutes)
                         )
                         .foregroundStyle(Color.nestPurple.opacity(0.15))
                         .interpolationMethod(.catmullRom)
-
-                        // Main line
                         LineMark(
                             x: .value("Date", point.date),
                             y: .value("Minutes", point.minutes)
@@ -272,8 +246,6 @@ struct AnalyticsView: View {
                         .foregroundStyle(Color.nestPurple)
                         .lineStyle(StrokeStyle(lineWidth: 2.5))
                         .interpolationMethod(.catmullRom)
-
-                        // Activity dot — only on days with study time
                         if point.hasActivity {
                             PointMark(
                                 x: .value("Date", point.date),
@@ -285,7 +257,6 @@ struct AnalyticsView: View {
                     }
                     .frame(height: 180)
                     .chartXAxis {
-                        // Show a label every ~7 days to avoid crowding
                         AxisMarks(values: stride(from: 0, through: 29, by: 7).compactMap {
                             Calendar.current.date(byAdding: .day, value: -$0, to: Date())
                         }) { value in
@@ -309,7 +280,6 @@ struct AnalyticsView: View {
                             }
                         }
                     }
-                    // Rule mark for "today" reference line
                     .chartOverlay { proxy in
                         GeometryReader { geo in
                             if let todayX = proxy.position(forX: Calendar.current.startOfDay(for: Date())) {
@@ -325,8 +295,6 @@ struct AnalyticsView: View {
         }
     }
 
-    // MARK: - Helpers
-
     private func emptyState(_ message: String) -> some View {
         Text(message)
             .font(.caption)
@@ -334,8 +302,6 @@ struct AnalyticsView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 120)
     }
-
-    /// Converts minutes to "1h 30m" or "45m" string.
     private func formatHours(_ minutes: Int) -> String {
         guard minutes > 0 else { return "0m" }
         let h = minutes / 60
@@ -345,8 +311,6 @@ struct AnalyticsView: View {
         return "\(h)h \(m)m"
     }
 }
-
-// MARK: - Reusable Card Container
 
 private struct AnalyticsCard<Content: View>: View {
     let title:   String
@@ -373,7 +337,7 @@ private struct AnalyticsCard<Content: View>: View {
     }
 }
 
-// MARK: - Summary Stat Block
+// Summary Stat Block
 
 struct SummaryStatBlock: View {
     let value: String
@@ -401,7 +365,7 @@ struct SummaryStatBlock: View {
     }
 }
 
-// MARK: - Streak Chip
+// Streak Chip
 
 private struct StreakChip: View {
     let icon:  String
@@ -430,7 +394,6 @@ private struct StreakChip: View {
     }
 }
 
-// MARK: - Preview
 
 #Preview {
     AnalyticsView()

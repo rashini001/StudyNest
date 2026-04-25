@@ -14,7 +14,7 @@ struct ProfileView: View {
             ScrollView {
                 VStack(spacing: 28) {
 
-                    // ── Avatar + name header ──────────────────────────
+                    
                     VStack(spacing: 14) {
                         ZStack {
                             Circle()
@@ -33,7 +33,7 @@ struct ProfileView: View {
                                 .foregroundColor(.white)
                         }
 
-                        // Display name (shows "—" if not set yet)
+                        // Display name
                         Text(authVM.profileDisplayName.isEmpty
                              ? "—"
                              : authVM.profileDisplayName)
@@ -46,7 +46,7 @@ struct ProfileView: View {
                     }
                     .padding(.top, 20)
 
-                    // ── Quick preference summary card ─────────────────
+                    //  Quick preference summary card
                     HStack(spacing: 0) {
                         PreferencePill(
                             icon:  "timer",
@@ -72,7 +72,7 @@ struct ProfileView: View {
                     .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
                     .padding(.horizontal)
 
-                    // ── Action cards ──────────────────────────────────
+                    // Action cards
                     VStack(spacing: 0) {
                         ProfileRow(icon: "person.fill",
                                    label: "Edit Profile",
@@ -112,14 +112,14 @@ struct ProfileView: View {
                         .foregroundColor(.nestPurple)
                 }
             }
-            // ── Sheets ────────────────────────────────────────────────
+            
             .sheet(isPresented: $showEditProfile) {
                 EditProfileView().environmentObject(authVM)
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView().environmentObject(authVM)
             }
-            // ── Sign-out alert ────────────────────────────────────────
+            // Sign-out alert
             .alert("Sign Out", isPresented: $showSignOutAlert) {
                 Button("Cancel", role: .cancel) {}
                 Button("Sign Out", role: .destructive) {
@@ -133,7 +133,7 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - ProfileRow helper
+// ProfileRow helper
 private struct ProfileRow: View {
     let icon: String
     let label: String
@@ -171,7 +171,6 @@ private struct ProfileRow: View {
     }
 }
 
-// MARK: - PreferencePill helper
 private struct PreferencePill: View {
     let icon:  String
     let label: String

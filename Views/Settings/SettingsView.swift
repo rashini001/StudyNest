@@ -6,13 +6,12 @@ struct SettingsView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @Environment(\.dismiss) var dismiss
 
-    // Local copies – written back to authVM + Firestore on change
+    // Local copies
     @State private var duration: Int   = 25
     @State private var sound: String   = "Rain"
     @State private var notifs: Bool    = true
     @State private var faceID: Bool    = false
 
-    // UI state
     @State private var showFaceIDError = false
     @State private var faceIDErrorMsg  = ""
 
@@ -20,7 +19,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
 
-                // ── Account info (read-only) ──────────────────────────
+                //Account info
                 Section("Account") {
                     Label(authVM.profileEmail, systemImage: "envelope.fill")
                         .foregroundColor(.nestDark)
@@ -32,7 +31,7 @@ struct SettingsView: View {
                     .foregroundColor(.nestDark)
                 }
 
-                // ── Pomodoro preferences ──────────────────────────────
+                //  Pomodoro preferences
                 Section("Focus Preferences") {
                     Stepper(
                         "Session Duration: \(duration) min",
@@ -48,15 +47,15 @@ struct SettingsView: View {
                     .onChange(of: sound) { _ in persistPreferences() }
                 }
 
-                // ── Notifications ─────────────────────────────────────
+                // Notifications
                 Section("Notifications") {
                     Toggle("Enable Reminders", isOn: $notifs)
                         .tint(.nestPurple)
                         .onChange(of: notifs) { _ in persistPreferences() }
                 }
 
-                // ── Security — Face ID only ───────────────────────────
-                // Only shown if Face ID hardware is present on this device.
+                //  Security — Face ID
+               
                 if BiometricService.shared.isFaceIDAvailable {
                     Section {
                         Toggle(isOn: $faceID) {
@@ -69,7 +68,7 @@ struct SettingsView: View {
                                 if newValue {
                                     let ok = await authVM.enableFaceID()
                                     if !ok {
-                                        // Revert toggle — user cancelled or Face ID failed
+                                
                                         faceID = false
                                         faceIDErrorMsg = "Face ID confirmation failed. Try again."
                                         showFaceIDError = true
@@ -95,7 +94,7 @@ struct SettingsView: View {
                     }
                 }
 
-                // ── About ─────────────────────────────────────────────
+                //  About
                 Section("About") {
                     HStack {
                         Text("Version")
@@ -114,7 +113,7 @@ struct SettingsView: View {
                         .foregroundColor(.nestPurple)
                 }
             }
-            // Seed local state from authVM on appear
+           
             .onAppear {
                 duration = authVM.preferredDuration
                 sound    = authVM.preferredSound
@@ -124,7 +123,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Helpers
 
     private func persistPreferences() {
         authVM.preferredDuration = duration
@@ -134,7 +132,7 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Bundle helper
+// Bundle helper
 private extension Bundle {
     var appVersionString: String {
         let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"

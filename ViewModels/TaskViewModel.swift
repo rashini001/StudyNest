@@ -37,11 +37,7 @@ final class TaskViewModel: ObservableObject {
         guard !userId.isEmpty else { return }
         isLoading = true
         loadFromCoreData()
-
-        if sync.isOnline {
-            await sync.sync()
-        }
-
+        if sync.isOnline { await sync.sync() }
         isLoading = false
     }
 
@@ -65,7 +61,6 @@ final class TaskViewModel: ObservableObject {
             isCompleted: false,
             createdAt:   Date()
         )
-
         task.notificationId = NotificationService.shared.scheduleTaskNotification(for: task)
 
         if priority == .high {
@@ -86,10 +81,12 @@ final class TaskViewModel: ObservableObject {
         refreshWidget()
     }
 
-
     func toggleCompletion(_ task: StudyTask) async {
         guard let idx = tasks.firstIndex(where: { $0.id == task.id }) else { return }
         tasks[idx].isCompleted.toggle()
+        if tasks[idx].isCompleted, let id = task.id {
+            NotificationService.shared.cancelTaskNotification(taskId: id)
+        }
 
         sync.saveTaskLocally(tasks[idx])
 
@@ -100,23 +97,21 @@ final class TaskViewModel: ObservableObject {
         refreshWidget()
     }
 
-    // Delete Task
+    //Delete Task
 
     func deleteTask(_ task: StudyTask) async {
         guard let id = task.id else { return }
+        NotificationService.shared.cancelTaskNotification(taskId: id)
 
         sync.deleteTaskLocally(id: id)
 
-        
         loadFromCoreData()
         refreshWidget()
     }
 
-    private func refreshWidget() {
-        WidgetCenter.shared.reloadAllTimelines()
-    }
+    private func refreshWidget() { WidgetCenter.shared.reloadAllTimelines() }
 
-    //Apple Calendar
+    //Calendar
 
     private func addToCalendar(task: StudyTask) async -> String? {
         let granted = await withCheckedContinuation { cont in
@@ -129,7 +124,7 @@ final class TaskViewModel: ObservableObject {
         event.startDate = task.dueDate
         event.endDate   = task.dueDate.addingTimeInterval(3600)
         event.calendar  = eventStore.defaultCalendarForNewEvents
-        event.addAlarm(EKAlarm(relativeOffset: -3600))   
+        event.addAlarm(EKAlarm(relativeOffset: -3600))
 
         try? eventStore.save(event, span: .thisEvent)
         return event.eventIdentifier

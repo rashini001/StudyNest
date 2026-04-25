@@ -5,7 +5,7 @@ struct AddSessionView: View {
     @ObservedObject var vm: SessionViewModel
     @Environment(\.dismiss) private var dismiss
 
-    // MARK: - Form State
+    // Form State
     @State private var subject = ""
     @State private var startTime = Date().roundedToNextHour()
     @State private var endTime = Date().roundedToNextHour().addingTimeInterval(3600)
@@ -13,7 +13,6 @@ struct AddSessionView: View {
     @State private var showTimePicker = false
     @FocusState private var subjectFocused: Bool
 
-    // Suggested subjects for quick pick
     private let suggestions = ["Mathematics", "Physics", "Chemistry", "Biology",
                                 "History", "Literature", "Computer Science", "Economics"]
 
@@ -22,7 +21,6 @@ struct AddSessionView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 22) {
 
-                    // MARK: Header Banner
                     ZStack(alignment: .bottomLeading) {
                         LinearGradient(
                             colors: [.nestPurple, .nestPink],
@@ -52,7 +50,7 @@ struct AddSessionView: View {
                     .cornerRadius(20)
                     .padding(.horizontal)
 
-                    // MARK: Subject Field
+                    // Subject Field
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Subject", systemImage: "book.closed.fill")
                             .font(.subheadline).fontWeight(.semibold)
@@ -69,7 +67,6 @@ struct AddSessionView: View {
                             )
                             .shadow(color: Color.nestPurple.opacity(0.06), radius: 6, x: 0, y: 3)
 
-                        // Quick-pick chips
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(suggestions, id: \.self) { s in
@@ -97,7 +94,7 @@ struct AddSessionView: View {
                     }
                     .padding(.horizontal)
 
-                    // MARK: Time Pickers
+                    // Time Pickers
                     VStack(alignment: .leading, spacing: 14) {
                         Label("Schedule", systemImage: "calendar.badge.clock")
                             .font(.subheadline).fontWeight(.semibold)
@@ -162,7 +159,7 @@ struct AddSessionView: View {
                     }
                     .padding(.horizontal)
 
-                    // MARK: Notes Field
+                    // Notes Field
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Notes (optional)", systemImage: "text.alignleft")
                             .font(.subheadline).fontWeight(.semibold)
@@ -181,7 +178,7 @@ struct AddSessionView: View {
                     }
                     .padding(.horizontal)
 
-                    // MARK: Calendar Info Banner
+                    // Calendar Info Banner
                     HStack(spacing: 10) {
                         Image(systemName: "bell.badge.fill")
                             .foregroundStyle(
@@ -203,7 +200,7 @@ struct AddSessionView: View {
                         .stroke(Color.nestPurple.opacity(0.15), lineWidth: 1))
                     .padding(.horizontal)
 
-                    // MARK: Error
+                    // Error
                     if let err = vm.errorMessage {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.circle.fill").foregroundColor(.red)
@@ -212,7 +209,7 @@ struct AddSessionView: View {
                         .padding(.horizontal)
                     }
 
-                    // MARK: Save Button
+                    // Save Button
                     Button {
                         Task {
                             await vm.addSession(
@@ -264,7 +261,7 @@ struct AddSessionView: View {
         }
     }
 
-    // MARK: - Helpers
+    //  Helpers
     private func formatDuration(_ minutes: Int) -> String {
         if minutes < 60 { return "\(minutes) min" }
         let h = minutes / 60; let m = minutes % 60
@@ -272,7 +269,7 @@ struct AddSessionView: View {
     }
 }
 
-// MARK: - Date helpers (local to this file)
+// Date helpers 
 private extension Date {
     func roundedToNextHour() -> Date {
         let cal = Calendar.current

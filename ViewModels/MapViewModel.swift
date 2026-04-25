@@ -2,8 +2,10 @@ import Foundation
 import MapKit
 import CoreLocation
 import Combine
+import SwiftUI
 
-//SpotCategory
+// SpotCategory
+
 enum SpotCategory: String, CaseIterable, Identifiable {
     case library    = "Library"
     case cafe       = "Cafe"
@@ -44,67 +46,105 @@ enum SpotCategory: String, CaseIterable, Identifiable {
     }
 }
 
-import SwiftUI
-
 //NearbyPlace
+
 struct NearbyPlace: Identifiable {
-    let id    = UUID()
-    let item:  MKMapItem
-    var name:  String  { item.name ?? "Unknown" }
-    var address: String { item.placemark.title ?? "" }
+    let id       = UUID()
+    let item:    MKMapItem
+    var name:    String  { item.name ?? "Unknown" }
+    var address: String  { item.placemark.title ?? "" }
     var coordinate: CLLocationCoordinate2D { item.placemark.coordinate }
     var category: SpotCategory
 }
 
+// MapViewModel
+
 @MainActor
 final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
 
-    //Map state
-    @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
-        span:   MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
+    //Map position
+    @Published var position: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612),
+            span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
+        )
     )
+
+    @Published var visibleCenter: CLLocationCoordinate2D =
+        CLLocationCoordinate2D(latitude: 6.9271, longitude: 79.8612)
+
     @Published var userLocation: CLLocationCoordinate2D? = nil
 
     // Saved spots
     @Published var savedSpots: [StudySpot] = []
 
-    //Nearby POIs
+    // Nearby POIs
     @Published var nearbyPlaces: [NearbyPlace] = []
 
-    //Search
-    @Published var searchText:    String     = ""
+    // Search
+    @Published var searchText:    String        = ""
     @Published var searchResults: [NearbyPlace] = []
-    @Published var isSearching:   Bool       = false
+    @Published var isSearching:   Bool          = false
 
-    //Selection
-    @Published var selectedNearby: NearbyPlace?  = nil   // tap nearby pin
-    @Published var selectedSaved:  StudySpot?    = nil   // tap saved pin
+    // Selection
+    @Published var selectedNearby: NearbyPlace? = nil
+    @Published var selectedSaved:  StudySpot?   = nil
 
-    //UI state
-    @Published var isLoading:     Bool   = false
-    @Published var errorMessage:  String = ""
-    @Published var activeFilter:  SpotCategory? = nil    // nil = all
+    // UI state
+    @Published var isLoading:    Bool   = false
+    @Published var errorMessage: String = ""
+    @Published var activeFilter: SpotCategory? = nil
 
-    //Private
-    private let firestore       = FirestoreService.shared
-    private let locationManager = CLLocationManager()
-    private var userId: String  { AuthService.shared.currentUserId ?? "" }
-    private var locationFetched = false
+    // Location state
+    @Published var locationStatus: CLAuthorizationStatus = .notDetermined
+    @Published var isLocating: Bool = false
+
+    private let firestore        = FirestoreService.shared
+    private let locationManager  = CLLocationManager()
+    private var userId: String   { AuthService.shared.currentUserId ?? "" }
+    private var didCenterOnUser  = false
 
     override init() {
         super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        locationManager.requestWhenInUseAuthorization()
+        locationManager.delegate           = self
+        locationManager.desiredAccuracy    = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter     = 50
+    }
+
+    func initialLoad() async {
+        await loadSavedSpots()
+        requestLocation()
+    }
+
+    func requestLocation() {
+        let status = locationManager.authorizationStatus
+        switch status {
+        case .notDetermined:
+            isLocating = true
+            locationManager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse, .authorizedAlways:
+            isLocating = true
+            locationManager.requestLocation()
+        case .denied, .restricted:
+            isLocating = false
+            Task { await loadNearbyPlaces() }
+        @unknown default:
+            break
+        }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
+            locationStatus = manager.authorizationStatus
             switch manager.authorizationStatus {
             case .authorizedWhenInUse, .authorizedAlways:
+                isLocating = true
                 manager.requestLocation()
-            default: break
+            case .denied, .restricted:
+                isLocating = false
+                await loadNearbyPlaces()
+            default:
+                break
             }
         }
     }
@@ -113,21 +153,31 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
                                      didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.first else { return }
         Task { @MainActor in
-            guard !locationFetched else { return }
-            locationFetched = true
-            userLocation    = loc.coordinate
-            region = MKCoordinateRegion(
-                center: loc.coordinate,
-                span:   MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
-            )
+            isLocating   = false
+            userLocation = loc.coordinate
+            visibleCenter = loc.coordinate
+            if !didCenterOnUser {
+                didCenterOnUser = true
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    position = .region(MKCoordinateRegion(
+                        center: loc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
+                    ))
+                }
+            }
             await loadNearbyPlaces()
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager,
-                                     didFailWithError error: Error) { }
+                                     didFailWithError error: Error) {
+        Task { @MainActor in
+            isLocating = false
+            if nearbyPlaces.isEmpty { await loadNearbyPlaces() }
+        }
+    }
 
-    //Saved Spots
+    // Saved Spots
 
     func loadSavedSpots() async {
         savedSpots = (try? await firestore.fetchSpots(for: userId)) ?? []
@@ -163,13 +213,13 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         }
     }
 
-    //Nearby POIs
+    // Nearby POIs
 
     func loadNearbyPlaces() async {
-        let centre = userLocation ?? region.center
+        let centre = userLocation ?? visibleCenter
         var results: [NearbyPlace] = []
 
-        let categories: [SpotCategory] = [.library, .cafe, .university]
+        let categories: [SpotCategory] = [.library, .cafe, .university, .park]
         await withTaskGroup(of: [NearbyPlace].self) { group in
             for cat in categories {
                 group.addTask {
@@ -190,24 +240,22 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         req.naturalLanguageQuery = keyword
         req.region = MKCoordinateRegion(
             center: center,
-            span:   MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
+            span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
         )
         let items = (try? await MKLocalSearch(request: req).start())?.mapItems ?? []
         return items.prefix(8).map { NearbyPlace(item: $0, category: category) }
     }
 
-    //Keyword Search
-
     func search() async {
         let query = searchText.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { searchResults = []; return }
-        isSearching = true
-        let centre  = userLocation ?? region.center
-        let req     = MKLocalSearch.Request()
+        isSearching   = true
+        let centre    = userLocation ?? visibleCenter
+        let req       = MKLocalSearch.Request()
         req.naturalLanguageQuery = query
         req.region = MKCoordinateRegion(
             center: centre,
-            span:   MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
+            span: MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
         )
         let items = (try? await MKLocalSearch(request: req).start())?.mapItems ?? []
         searchResults = items.map { NearbyPlace(item: $0, category: guessCategory($0)) }
@@ -215,7 +263,11 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
 
         if let first = searchResults.first {
             withAnimation {
-                region.center = first.coordinate
+                position = .region(MKCoordinateRegion(
+                    center: first.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
+                ))
+                visibleCenter = first.coordinate
             }
         }
     }
@@ -225,7 +277,19 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         searchResults = []
     }
 
-    //Directions
+    func recenterOnUser() {
+        guard let loc = userLocation else {
+            requestLocation(); return
+        }
+        withAnimation(.easeInOut(duration: 0.6)) {
+            position = .userLocation(fallback: .region(MKCoordinateRegion(
+                center: loc,
+                span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
+            )))
+        }
+    }
+
+    // Directions
 
     func openDirections(to coordinate: CLLocationCoordinate2D, name: String) {
         let placemark = MKPlacemark(coordinate: coordinate)
@@ -236,8 +300,6 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
         ])
     }
 
-    //Filtered display
-
     var displayedNearby: [NearbyPlace] {
         let base = searchResults.isEmpty ? nearbyPlaces : searchResults
         guard let filter = activeFilter else { return base }
@@ -246,10 +308,10 @@ final class MapViewModel: NSObject, ObservableObject, CLLocationManagerDelegate 
 
     private func guessCategory(_ item: MKMapItem) -> SpotCategory {
         let name = (item.name ?? "").lowercased()
-        if name.contains("library")                         { return .library }
-        if name.contains("cafe") || name.contains("coffee") { return .cafe }
+        if name.contains("library")                              { return .library }
+        if name.contains("cafe") || name.contains("coffee")     { return .cafe }
         if name.contains("university") || name.contains("college") { return .university }
-        if name.contains("park")                            { return .park }
+        if name.contains("park")                                 { return .park }
         return .other
     }
 }

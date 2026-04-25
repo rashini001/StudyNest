@@ -6,7 +6,6 @@ final class KeychainService {
     static let shared = KeychainService()
     private init() {}
 
-    //Key namespace
 
     enum Key: String {
         case firebaseRefreshToken = "com.studynest.firebase.refreshToken"

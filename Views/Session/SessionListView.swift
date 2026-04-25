@@ -1,7 +1,3 @@
-//
-//  SessionListView.swift
-//  StudyNest
-//
 
 import SwiftUI
 
@@ -50,7 +46,7 @@ struct SessionListView: View {
                     }
                 }
             }
-            // AddSession sheet — reload on dismiss
+            // AddSession sheet
             .sheet(isPresented: $showAdd) {
                 AddSessionView(vm: vm)
             }
@@ -65,16 +61,13 @@ struct SessionListView: View {
                 Text("'\(s.subject)' will also be removed from your calendar.")
             }
             .overlay(successToast)
-            // ✅ Reload when Add sheet closes
-            .onChange(of: showAdd) { _, isShowing in
-                if !isShowing { Task { await vm.loadSessions() } }
-            }
+         
             .task { await vm.loadSessions() }
             .refreshable { await vm.loadSessions() }
         }
     }
 
-    // MARK: - Session List
+    // Session List
     private var sessionList: some View {
         List {
             // In Progress
@@ -140,7 +133,7 @@ struct SessionListView: View {
         } label: { Label("Delete", systemImage: "trash") }
     }
 
-    // MARK: - Empty State
+    // Empty State
     private var emptyView: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -171,7 +164,7 @@ struct SessionListView: View {
         }
     }
 
-    // MARK: - Loading
+    // Loading
     private var loadingView: some View {
         VStack(spacing: 14) {
             ProgressView().scaleEffect(1.4).tint(.nestPurple)
@@ -180,7 +173,7 @@ struct SessionListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Toast
+    // Toast
     @ViewBuilder
     private var successToast: some View {
         if vm.showSuccess {
@@ -211,7 +204,7 @@ struct SessionListView: View {
     }
 }
 
-// MARK: - Calendar Sheet View
+//  Calendar Sheet View
 
 struct SessionCalendarView: View {
 
@@ -381,13 +374,13 @@ struct SessionCalendarView: View {
     }
 }
 
-// MARK: - Calendar Session Card
+// Calendar Session Card
 
 struct CalendarSessionCard: View {
     let session: StudySession
     var body: some View {
         HStack(spacing: 14) {
-            // Left color bar
+           
             RoundedRectangle(cornerRadius: 3)
                 .fill(LinearGradient(colors: [.nestPink, .nestPurple],
                                      startPoint: .top, endPoint: .bottom))
@@ -434,7 +427,7 @@ struct CalendarSessionCard: View {
     }
 }
 
-// MARK: - Session Row (list)
+// Session Row
 
 struct SessionRowView: View {
     let session: StudySession
@@ -513,7 +506,7 @@ struct SessionRowView: View {
     }
 }
 
-// MARK: - Date Helpers
+// Date Helpers
 private extension Date {
     var shortTime12: String {
         let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: self)

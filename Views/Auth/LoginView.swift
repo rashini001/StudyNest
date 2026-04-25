@@ -21,7 +21,6 @@ struct LoginView: View {
 
                 Spacer()
 
-                // ── Branding ──────────────────────────────────────────
                 VStack(spacing: 6) {
                     Image(systemName: "books.vertical.fill")
                         .font(.system(size: 50))
@@ -35,7 +34,7 @@ struct LoginView: View {
                         .foregroundColor(.white.opacity(0.85))
                 }
 
-                // ── Login card ────────────────────────────────────────
+                //Login card
                 VStack(spacing: 16) {
 
                     TextField("Email", text: $email)
@@ -64,10 +63,6 @@ struct LoginView: View {
                     }
                     .buttonStyle(GradientButtonStyle())
                     .disabled(authVM.isLoading)
-
-                    // Face ID button — only shown when the user has
-                    // previously enabled it in Settings AND Face ID
-                    // hardware is available on this device.
                     if authVM.faceIDEnabled && BiometricService.shared.isFaceIDAvailable {
                         Button {
                             Task { await authVM.signInWithFaceID() }

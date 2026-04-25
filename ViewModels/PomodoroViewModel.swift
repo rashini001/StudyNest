@@ -26,7 +26,8 @@ enum PomodoroPhase: String {
     }
 }
 
-//ViewModel
+// ViewModel
+
 @MainActor
 final class PomodoroViewModel: ObservableObject {
 
@@ -37,10 +38,9 @@ final class PomodoroViewModel: ObservableObject {
     @Published var subjectTag: String      = "General"
     @Published var selectedSound: AmbientSound = .rain
 
-    @Published var phaseJustEnded: Bool    = false
+    @Published var phaseJustEnded: Bool          = false
     @Published var lastCompletedPhase: PomodoroPhase = .idle
 
-    // MARK: - Private
     private var timer: AnyCancellable?
     private let soundService = AmbientSoundService.shared
 
@@ -65,11 +65,9 @@ final class PomodoroViewModel: ObservableObject {
 
     var phaseLabel: String { phase.rawValue }
 
-    var isOnBreak: Bool {
-        phase == .shortBreak || phase == .longBreak
-    }
+    var isOnBreak: Bool { phase == .shortBreak || phase == .longBreak }
 
-    //Controls
+    // Controls
 
     func start() {
         if phase == .idle {
@@ -77,9 +75,7 @@ final class PomodoroViewModel: ObservableObject {
             secondsRemaining = totalSeconds
         }
         isRunning = true
-        if phase == .work {
-            soundService.play(selectedSound)
-        }
+        if phase == .work { soundService.play(selectedSound) }
 
         timer = Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
@@ -101,30 +97,24 @@ final class PomodoroViewModel: ObservableObject {
         soundService.stop()
     }
 
-    func skipPhase() {
-        advancePhase()
-    }
+    func skipPhase() { advancePhase() }
 
-    //Timer Tick
+    // Timer Tick
 
     private func tick() {
-        guard secondsRemaining > 0 else {
-            advancePhase()
-            return
-        }
+        guard secondsRemaining > 0 else { advancePhase(); return }
         secondsRemaining -= 1
     }
 
     private func advancePhase() {
         timer?.cancel()
         isRunning = false
-
-        lastCompletedPhase = phase
+        let finishedPhase  = phase
+        lastCompletedPhase = finishedPhase
         phaseJustEnded     = true
+        NotificationService.shared.schedulePomodoroEnd(completedPhase: finishedPhase.rawValue)
 
-        NotificationService.shared.schedulePomodoroEnd(phase: phase.rawValue)
-
-        switch phase {
+        switch finishedPhase {
         case .idle:
             phase = .work
 
@@ -134,26 +124,20 @@ final class PomodoroViewModel: ObservableObject {
             soundService.pause()
 
         case .shortBreak, .longBreak:
-
             phase = .work
             soundService.resume()
         }
 
         secondsRemaining = totalSeconds
-
         start()
     }
 
-    // Ambient Sound Control
+    // Ambient Sound
 
     func changeSound(_ sound: AmbientSound) {
         selectedSound = sound
-        if isRunning && phase == .work {
-            soundService.play(sound)
-        }
+        if isRunning && phase == .work { soundService.play(sound) }
     }
-
-    //Save to Firestore
 
     func saveRecord(userId: String) async {
         guard cyclesCompleted > 0 else { return }

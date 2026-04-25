@@ -2,35 +2,41 @@ import SwiftUI
 import MapKit
 
 struct MapView: View {
-    @StateObject private var vm          = MapViewModel()
-    @State private var showSavedList     = false
+    @StateObject private var vm       = MapViewModel()
+    @State private var showSavedList  = false
     @State private var pendingPlace: NearbyPlace? = nil
-    @State private var showSaveSheet     = false
+    @State private var showSaveSheet  = false
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
 
-                // MARK: - Map
-                Map(coordinateRegion: $vm.region,
-                    showsUserLocation: true,
-                    annotationItems: combinedAnnotations) { ann in
-                    MapAnnotation(coordinate: ann.coordinate) {
-                        switch ann.kind {
-                        case .nearby(let place):
-                            NearbyPin(place: place, isSaved: vm.isAlreadySaved(place))
-                                .onTapGesture { vm.selectedNearby = place }
-                        case .saved(let spot):
-                            SavedPin(spot: spot)
-                                .onTapGesture { vm.selectedSaved = spot }
+                Map(position: $vm.position) {
+               
+                    UserAnnotation()
+
+                    ForEach(combinedAnnotations) { ann in
+                        Annotation("", coordinate: ann.coordinate, anchor: .bottom) {
+                            switch ann.kind {
+                            case .nearby(let place):
+                                NearbyPin(place: place, isSaved: vm.isAlreadySaved(place))
+                                    .onTapGesture { vm.selectedNearby = place }
+                            case .saved(let spot):
+                                SavedPin(spot: spot)
+                                    .onTapGesture { vm.selectedSaved = spot }
+                            }
                         }
                     }
                 }
+                .mapStyle(.standard(elevation: .realistic))
+                .mapControls {
+                    MapCompass()
+                    MapScaleView()
+                }
                 .ignoresSafeArea()
 
-                // MARK: - Top overlay (search + filters)
                 VStack(spacing: 8) {
-                    // Search bar
+                   
                     HStack(spacing: 10) {
                         HStack {
                             Image(systemName: "magnifyingglass").foregroundColor(.gray)
@@ -48,9 +54,7 @@ struct MapView: View {
                         .cornerRadius(12)
                         .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
 
-                        Button {
-                            Task { await vm.search() }
-                        } label: {
+                        Button { Task { await vm.search() } } label: {
                             Group {
                                 if vm.isSearching {
                                     ProgressView().tint(.white)
@@ -68,8 +72,6 @@ struct MapView: View {
                         }
                     }
                     .padding(.horizontal)
-
-                    // Category filter chips
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             FilterChipMap(label: "All", icon: "mappin.and.ellipse",
@@ -85,12 +87,13 @@ struct MapView: View {
                         }
                         .padding(.horizontal)
                     }
-
-                    // Search result dropdown
                     if !vm.searchResults.isEmpty {
                         SearchDropdown(results: vm.searchResults,
                                        isSaved: vm.isAlreadySaved) { place in
-                            withAnimation { vm.region.center = place.coordinate }
+                            withAnimation { vm.position = .region(MKCoordinateRegion(
+                                center: place.coordinate,
+                                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                            )) }
                             vm.searchResults = []
                             vm.searchText    = ""
                             pendingPlace     = place
@@ -100,72 +103,108 @@ struct MapView: View {
                     }
                 }
                 .padding(.top, 8)
-
-                // MARK: - Saved-list FAB
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
-                        Button { showSavedList = true } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(LinearGradient(colors: [.nestPink, .nestPurple],
-                                                         startPoint: .topLeading,
-                                                         endPoint: .bottomTrailing))
-                                    .frame(width: 52, height: 52)
-                                    .shadow(color: .nestPurple.opacity(0.4), radius: 8, y: 4)
-                                VStack(spacing: 1) {
-                                    Image(systemName: "bookmark.fill")
-                                        .foregroundColor(.white).font(.system(size: 16))
-                                    Text("\(vm.savedSpots.count)")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundColor(.white)
+                        VStack(spacing: 12) {
+                            Button { vm.recenterOnUser() } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color(.systemBackground))
+                                        .frame(width: 46, height: 46)
+                                        .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+                                    if vm.isLocating {
+                                        ProgressView().tint(.nestPurple)
+                                    } else {
+                                        Image(systemName: "location.fill")
+                                            .foregroundColor(.nestPurple)
+                                            .font(.system(size: 18))
+                                    }
+                                }
+                            }
+                            Button { showSavedList = true } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(LinearGradient(
+                                            colors: [.nestPink, .nestPurple],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing))
+                                        .frame(width: 52, height: 52)
+                                        .shadow(color: .nestPurple.opacity(0.4), radius: 8, y: 4)
+                                    VStack(spacing: 1) {
+                                        Image(systemName: "bookmark.fill")
+                                            .foregroundColor(.white).font(.system(size: 16))
+                                        Text("\(vm.savedSpots.count)")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
                                 }
                             }
                         }
-                        .padding(.trailing, 20).padding(.bottom, 20)
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 24)
+                    }
+                }
+                if vm.locationStatus == .denied || vm.locationStatus == .restricted {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 10) {
+                            Image(systemName: "location.slash.fill")
+                                .foregroundColor(.nestPink)
+                            Text("Location access denied — showing default area.")
+                                .font(.caption)
+                                .foregroundColor(.nestDark)
+                            Spacer()
+                            Button("Settings") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .font(.caption.bold())
+                            .foregroundColor(.nestPurple)
+                        }
+                        .padding(12)
+                        .background(Color(.systemBackground).opacity(0.95))
+                        .cornerRadius(14)
+                        .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 100)
                     }
                 }
             }
             .navigationTitle("Study Spots")
             .navigationBarTitleDisplayMode(.inline)
-            .task {
-                await vm.loadSavedSpots()
-                await vm.loadNearbyPlaces()
-            }
+            .task { await vm.initialLoad() }
 
-            // MARK: - Nearby place detail sheet
+            // Nearby place detail
             .sheet(item: $vm.selectedNearby) { place in
                 NearbyPlaceDetailView(place: place,
                                       isSaved: vm.isAlreadySaved(place),
                                       vm: vm)
             }
-
-            // MARK: - Saved spot detail sheet
+            // Saved spot detail
             .sheet(item: $vm.selectedSaved) { spot in
                 SavedSpotDetailView(spot: spot, vm: vm)
             }
-
-            // MARK: - Save sheet from search result tap
+            // Save sheet from search result
             .sheet(isPresented: $showSaveSheet, onDismiss: { pendingPlace = nil }) {
                 if let place = pendingPlace {
                     SpotDetailSheet(place: place, vm: vm)
                 }
             }
-
-            // MARK: - Saved list
+            // Saved list
             .sheet(isPresented: $showSavedList) {
                 SavedSpotsListView(vm: vm)
             }
         }
     }
 
-    // Merge nearby + saved into one annotation array
+
     private var combinedAnnotations: [MapAnnotationItem] {
         var items: [MapAnnotationItem] = vm.displayedNearby.map {
             MapAnnotationItem(id: $0.id.uuidString, coordinate: $0.coordinate, kind: .nearby($0))
         }
-        // Only show saved pins that aren't already in nearby results
         for spot in vm.savedSpots {
             let alreadyShown = vm.displayedNearby.contains {
                 abs($0.coordinate.latitude  - spot.latitude)  < 0.0002 &&
@@ -184,7 +223,7 @@ struct MapView: View {
     }
 }
 
-// MARK: - Annotation wrapper
+
 struct MapAnnotationItem: Identifiable {
     let id: String
     let coordinate: CLLocationCoordinate2D
@@ -192,7 +231,8 @@ struct MapAnnotationItem: Identifiable {
     let kind: Kind
 }
 
-// MARK: - NearbyPin
+// NearbyPin
+
 struct NearbyPin: View {
     let place:   NearbyPlace
     let isSaved: Bool
@@ -220,7 +260,8 @@ struct NearbyPin: View {
     }
 }
 
-// MARK: - SavedPin
+// SavedPin
+
 struct SavedPin: View {
     let spot: StudySpot
     var body: some View {
@@ -260,7 +301,7 @@ struct PinTriangle: Shape {
     }
 }
 
-// MARK: - FilterChipMap
+
 struct FilterChipMap: View {
     let label: String; let icon: String
     let isSelected: Bool; let action: () -> Void
@@ -284,7 +325,8 @@ struct FilterChipMap: View {
     }
 }
 
-// MARK: - SearchDropdown
+// SearchDropdown
+
 struct SearchDropdown: View {
     let results: [NearbyPlace]
     let isSaved: (NearbyPlace) -> Bool
@@ -304,8 +346,7 @@ struct SearchDropdown: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(place.name).font(.subheadline).fontWeight(.medium)
                                 .foregroundColor(.nestDark).lineLimit(1)
-                            Text(place.address).font(.caption).foregroundColor(.gray)
-                                .lineLimit(1)
+                            Text(place.address).font(.caption).foregroundColor(.gray).lineLimit(1)
                         }
                         Spacer()
                         if isSaved(place) {
@@ -327,7 +368,8 @@ struct SearchDropdown: View {
     }
 }
 
-// MARK: - NearbyPlaceDetailView
+// NearbyPlaceDetailView
+
 struct NearbyPlaceDetailView: View {
     let place:   NearbyPlace
     let isSaved: Bool
@@ -339,8 +381,6 @@ struct NearbyPlaceDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-
-                    // Header gradient
                     ZStack(alignment: .bottomLeading) {
                         LinearGradient(colors: [place.category.pinColor,
                                                 place.category.pinColor.opacity(0.7)],
@@ -348,13 +388,11 @@ struct NearbyPlaceDetailView: View {
                             .frame(height: 140)
                         VStack(alignment: .leading, spacing: 6) {
                             ZStack {
-                                Circle().fill(Color.white.opacity(0.25))
-                                    .frame(width: 46, height: 46)
+                                Circle().fill(Color.white.opacity(0.25)).frame(width: 46, height: 46)
                                 Image(systemName: place.category.icon)
                                     .font(.title2).foregroundColor(.white)
                             }
-                            Text(place.name)
-                                .font(.title3).bold().foregroundColor(.white)
+                            Text(place.name).font(.title3).bold().foregroundColor(.white)
                             Text(place.category.rawValue)
                                 .font(.caption).foregroundColor(.white.opacity(0.85))
                                 .padding(.horizontal, 8).padding(.vertical, 3)
@@ -364,30 +402,18 @@ struct NearbyPlaceDetailView: View {
                     }
 
                     VStack(spacing: 16) {
-                        // Address
-                        InfoRowMap(icon: "mappin.and.ellipse", label: "Address",
-                                   value: place.address)
-
+                        InfoRowMap(icon: "mappin.and.ellipse", label: "Address", value: place.address)
                         Divider()
-
-                        // Action buttons
                         HStack(spacing: 12) {
-                            // Directions
                             ActionButton(icon: "arrow.triangle.turn.up.right.circle.fill",
-                                         label: "Directions",
-                                         color: .blue) {
+                                         label: "Directions", color: .blue) {
                                 vm.openDirections(to: place.coordinate, name: place.name)
                             }
-
-                            // Save / Already saved
                             if isSaved {
-                                ActionButton(icon: "bookmark.fill",
-                                             label: "Saved",
-                                             color: .nestPurple) { }
-                                    .opacity(0.6)
+                                ActionButton(icon: "bookmark.fill", label: "Saved",
+                                             color: .nestPurple) { }.opacity(0.6)
                             } else {
-                                ActionButton(icon: "bookmark",
-                                             label: "Save Spot",
+                                ActionButton(icon: "bookmark", label: "Save Spot",
                                              color: .nestPink) {
                                     dismiss()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -395,11 +421,7 @@ struct NearbyPlaceDetailView: View {
                                     }
                                 }
                             }
-
-                            // Open in Maps
-                            ActionButton(icon: "map.fill",
-                                         label: "Open Maps",
-                                         color: .green) {
+                            ActionButton(icon: "map.fill", label: "Open Maps", color: .green) {
                                 place.item.openInMaps()
                             }
                         }
@@ -422,7 +444,8 @@ struct NearbyPlaceDetailView: View {
     }
 }
 
-// MARK: - SavedSpotDetailView
+// SavedSpotDetailView
+
 struct SavedSpotDetailView: View {
     let spot: StudySpot
     @ObservedObject var vm: MapViewModel
@@ -432,16 +455,13 @@ struct SavedSpotDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-
-                    // Header
                     ZStack(alignment: .bottomLeading) {
                         LinearGradient(colors: [.nestPink, .nestPurple],
                                        startPoint: .topLeading, endPoint: .bottomTrailing)
                             .frame(height: 140)
                         VStack(alignment: .leading, spacing: 6) {
                             ZStack {
-                                Circle().fill(Color.white.opacity(0.25))
-                                    .frame(width: 46, height: 46)
+                                Circle().fill(Color.white.opacity(0.25)).frame(width: 46, height: 46)
                                 Image(systemName: SpotCategory(rawValue: spot.category)?.icon
                                       ?? "mappin.circle.fill")
                                     .font(.title2).foregroundColor(.white)
@@ -456,12 +476,8 @@ struct SavedSpotDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 16) {
-
-                        InfoRowMap(icon: "mappin.and.ellipse", label: "Address",
-                                   value: spot.address)
+                        InfoRowMap(icon: "mappin.and.ellipse", label: "Address", value: spot.address)
                         Divider()
-
-                        // Rating
                         HStack {
                             Image(systemName: "star.fill").foregroundColor(.nestPink)
                             Text("Rating").font(.subheadline).foregroundColor(.gray)
@@ -476,7 +492,6 @@ struct SavedSpotDetailView: View {
                         }
                         .padding(.horizontal)
 
-                        // Note
                         if !spot.personalNote.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
                                 Label("Personal Note", systemImage: "note.text")
@@ -492,8 +507,6 @@ struct SavedSpotDetailView: View {
                         }
 
                         Divider()
-
-                        // Actions
                         HStack(spacing: 12) {
                             ActionButton(icon: "arrow.triangle.turn.up.right.circle.fill",
                                          label: "Directions", color: .blue) {
@@ -511,7 +524,6 @@ struct SavedSpotDetailView: View {
                         }
                         .padding(.horizontal)
 
-                        // Delete
                         Button(role: .destructive) {
                             Task { await vm.deleteSpot(spot); dismiss() }
                         } label: {
@@ -536,7 +548,8 @@ struct SavedSpotDetailView: View {
     }
 }
 
-// MARK: - SavedSpotsListView
+// SavedSpotsListView
+
 struct SavedSpotsListView: View {
     @ObservedObject var vm: MapViewModel
     @Environment(\.dismiss) var dismiss
@@ -594,7 +607,7 @@ struct SavedSpotsListView: View {
     }
 }
 
-// MARK: - Shared helper views
+
 struct InfoRowMap: View {
     let icon: String; let label: String; let value: String
     var body: some View {

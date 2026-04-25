@@ -1,15 +1,8 @@
-//
-//  AddFlashcardView.swift
-//  StudyNest
-//
-//  Two-tab sheet: Manual Entry and Scan-to-Flashcard confirmation.
-//
-
 import SwiftUI
 import Vision
 import PhotosUI
 
-// MARK: - AddFlashcardView
+// AddFlashcardView
 
 struct AddFlashcardView: View {
 
@@ -17,12 +10,11 @@ struct AddFlashcardView: View {
     @ObservedObject var vm: FlashcardViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedTab  = 0         // 0 = Manual, 1 = Scan
+    @State private var selectedTab  = 0
     @State private var question     = ""
     @State private var answer       = ""
     @State private var saveSuccess  = false
 
-    // Scan tab state
     @State private var pickerItem: PhotosPickerItem?
     @State private var isScanning   = false
     @State private var rawLines: [String] = []
@@ -31,7 +23,6 @@ struct AddFlashcardView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Tab picker
                 Picker("Mode", selection: $selectedTab) {
                     Text("Manual Entry").tag(0)
                     Text("Scan to Card").tag(1)
@@ -41,8 +32,6 @@ struct AddFlashcardView: View {
                 .padding(.vertical, 12)
 
                 Divider()
-
-                // Tab content
                 if selectedTab == 0 {
                     manualEntryTab
                 } else {
@@ -56,7 +45,6 @@ struct AddFlashcardView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            // Route to scan-confirm sheet
             .sheet(isPresented: $showScanConfirm) {
                 ScanConfirmView(vm: vm, deck: deck, onDismiss: { dismiss() })
             }
@@ -67,7 +55,7 @@ struct AddFlashcardView: View {
         }
     }
 
-    // MARK: - Manual Entry Tab
+    // Manual Entry Tab
 
     private var manualEntryTab: some View {
         ScrollView {
@@ -125,7 +113,7 @@ struct AddFlashcardView: View {
         }
     }
 
-    // MARK: - Live card preview
+    // Live card preview
 
     private var cardPreview: some View {
         ZStack {
@@ -156,13 +144,11 @@ struct AddFlashcardView: View {
         .animation(.easeInOut(duration: 0.2), value: question + answer)
     }
 
-    // MARK: - Scan Tab
+    // Scan Tab
 
     private var scanTab: some View {
         ScrollView {
             VStack(spacing: 20) {
-
-                // Instructions card
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.blue)
@@ -179,8 +165,6 @@ struct AddFlashcardView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.blue.opacity(0.07))
                 )
-
-                // Photo picker
                 PhotosPicker(selection: $pickerItem, matching: .images) {
                     Label(
                         isScanning ? "Scanning…" : "Choose Image to Scan",
@@ -199,8 +183,6 @@ struct AddFlashcardView: View {
                     guard let newItem else { return }
                     Task { await runOCR(on: newItem) }
                 }
-
-                // Preview extracted lines
                 if !rawLines.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Extracted Lines (\(rawLines.count))")
@@ -245,7 +227,7 @@ struct AddFlashcardView: View {
 
     private var pairCount: Int { (rawLines.count + 1) / 2 }
 
-    // MARK: - OCR
+    // OCR
 
     private func runOCR(on item: PhotosPickerItem) async {
         isScanning = true
@@ -269,7 +251,7 @@ struct AddFlashcardView: View {
     }
 }
 
-// MARK: - ScanConfirmView
+//ScanConfirmView
 
 struct ScanConfirmView: View {
 
@@ -351,7 +333,7 @@ struct ScanConfirmView: View {
     }
 }
 
-// MARK: - ScanPairRow
+// ScanPairRow
 
 struct ScanPairRow: View {
 
@@ -364,9 +346,7 @@ struct ScanPairRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header row
             HStack(spacing: 10) {
-                // Accept / Reject toggle
                 Button(action: onToggle) {
                     Image(systemName: pair.accepted ? "checkmark.circle.fill" : "xmark.circle.fill")
                         .font(.title3)
@@ -374,7 +354,6 @@ struct ScanPairRow: View {
                 }
                 .buttonStyle(.plain)
 
-                // Pair number
                 Text("#\(index + 1)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -392,16 +371,12 @@ struct ScanPairRow: View {
                 .animation(.easeInOut(duration: 0.2), value: isExpanded)
 
                 Spacer()
-
-                // Swap button
                 Button(action: onSwap) {
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.caption)
                         .foregroundStyle(.blue)
                 }
                 .buttonStyle(.plain)
-
-                // Expand/collapse
                 Button {
                     withAnimation { isExpanded.toggle() }
                 } label: {
@@ -411,8 +386,6 @@ struct ScanPairRow: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            // Expanded edit fields
             if isExpanded {
                 VStack(spacing: 10) {
                     Divider().padding(.top, 8)

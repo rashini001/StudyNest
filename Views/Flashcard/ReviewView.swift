@@ -1,13 +1,6 @@
-//
-//  ReviewView.swift
-//  StudyNest
-//
-//  Themed to match the pink/purple StudyNest brand aesthetic.
-//
-
 import SwiftUI
 
-// MARK: - ReviewView
+// ReviewView
 
 struct ReviewView: View {
 
@@ -23,7 +16,7 @@ struct ReviewView: View {
 
     var body: some View {
         ZStack {
-            // Full-bleed gradient background
+           
             LinearGradient(
                 colors: [Color.nestLightPurple, Color(.systemGroupedBackground)],
                 startPoint: .top, endPoint: .bottom
@@ -54,7 +47,7 @@ struct ReviewView: View {
         }
     }
 
-    // MARK: - Loading
+    // Loading
 
     private var loadingView: some View {
         VStack(spacing: 14) {
@@ -63,13 +56,11 @@ struct ReviewView: View {
         }
     }
 
-    // MARK: - Start Screen
+    // Start Screen
 
     private var startView: some View {
         VStack(spacing: 28) {
             Spacer()
-
-            // Deck icon
             ZStack {
                 Circle()
                     .fill(Color.nestLightPurple)
@@ -94,8 +85,6 @@ struct ReviewView: View {
                     .background(Color.nestLightPurple)
                     .clipShape(Capsule())
             }
-
-            // Tips card
             VStack(alignment: .leading, spacing: 12) {
                 tipRow(icon: "hand.draw.fill",   color: .nestPurple, text: "Swipe right = correct")
                 tipRow(icon: "arrow.uturn.left",  color: .nestPink,   text: "Swipe left = retry")
@@ -132,7 +121,7 @@ struct ReviewView: View {
         }
     }
 
-    // MARK: - Review Session
+    // Review Session
 
     private var reviewSession: some View {
         VStack(spacing: 0) {
@@ -140,8 +129,6 @@ struct ReviewView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
                 .padding(.bottom, 12)
-
-            // Gradient progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.nestLightPurple).frame(height: 6)
@@ -158,11 +145,7 @@ struct ReviewView: View {
             .padding(.horizontal, 20)
 
             Spacer()
-
-            // Feedback badge
             feedbackOverlay
-
-            // Card
             if let card = vm.currentCard {
                 flashCard(card: card)
                     .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
@@ -197,8 +180,6 @@ struct ReviewView: View {
         }
     }
 
-    // MARK: - Session Header
-
     private var sessionHeader: some View {
         HStack {
             Button { dismiss() } label: {
@@ -222,7 +203,6 @@ struct ReviewView: View {
 
             Spacer()
 
-            // Score pill
             HStack(spacing: 4) {
                 Image(systemName: "checkmark")
                     .font(.caption2.bold())
@@ -238,15 +218,13 @@ struct ReviewView: View {
         }
     }
 
-    // MARK: - Flash Card
+    // Flash Card
 
     private func flashCard(card: Flashcard) -> some View {
         ZStack {
-            // Card base
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color(.systemBackground))
                 .shadow(color: Color.nestPurple.opacity(0.15), radius: 20, x: 0, y: 8)
-                // Swipe colour tint
                 .overlay(
                     RoundedRectangle(cornerRadius: 24).fill(
                         dragOffset.width > 60
@@ -322,7 +300,7 @@ struct ReviewView: View {
         .frame(height: 280)
     }
 
-    // MARK: - Feedback Overlay
+    // Feedback Overlay
 
     private var feedbackOverlay: some View {
         Text(feedbackIsCorrect ? "✓ Correct!" : "↺ Retry")
@@ -341,7 +319,7 @@ struct ReviewView: View {
             .animation(.easeOut(duration: 0.3), value: feedbackOpacity)
     }
 
-    // MARK: - Action Buttons
+    //  Action Buttons
 
     @ViewBuilder
     private var actionButtons: some View {
@@ -394,7 +372,7 @@ struct ReviewView: View {
         }
     }
 
-    // MARK: - Judgment
+    // Judgment
 
     private func commitJudgment(correct: Bool) {
         feedbackIsCorrect = correct
@@ -418,7 +396,7 @@ struct ReviewView: View {
     }
 }
 
-// MARK: - ResultsView
+// ResultsView
 
 struct ResultsView: View {
 

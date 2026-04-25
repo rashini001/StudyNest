@@ -1,5 +1,6 @@
 import SwiftUI
 import VisionKit
+internal import LocalAuthentication
 
 struct NotesVaultView: View {
     @StateObject private var vm = NotesViewModel()
@@ -7,12 +8,22 @@ struct NotesVaultView: View {
     @State private var showPicker = false
     @State private var showOCR = false
 
+    static func checkBiometricsAvailable() -> Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        let context = LAContext()
+        var error: NSError?
+        return context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        #endif
+    }
+
     var body: some View {
         NavigationStack {
             Group {
                 if !vm.isAuthenticated {
                     VaultLockedView(
-                        isBiometricsAvailable: BiometricService.shared.isFaceIDAvailable,
+                        isBiometricsAvailable: NotesVaultView.checkBiometricsAvailable(),
                         onUnlock: { Task { await vm.authenticate() } }
                     )
                 } else {
@@ -32,10 +43,9 @@ struct NotesVaultView: View {
                     }
                 }
             }
-            // Auto-trigger Face ID as soon as the vault screen appears
-            .onAppear {
+            .task {
                 if !vm.isAuthenticated {
-                    Task { await vm.authenticate() }
+                    await vm.authenticate()
                 }
             }
             .fullScreenCover(isPresented: $showScanner) {
@@ -79,7 +89,7 @@ struct NotesVaultView: View {
     }
 }
 
-// MARK: - Notes List with Subject Tabs
+// Notes List with Subject Tabs
 
 struct NotesList: View {
     @ObservedObject var vm: NotesViewModel
@@ -132,7 +142,7 @@ struct NotesList: View {
     }
 }
 
-// MARK: - Subject Tab Bar
+// Subject Tab Bar
 
 struct SubjectTabBar: View {
     let subjects: [String]
@@ -164,7 +174,7 @@ struct SubjectTabBar: View {
     }
 }
 
-// MARK: - Note Row
+// Note Row
 
 struct NoteRow: View {
     let note: PDFNote
@@ -198,7 +208,7 @@ struct NoteRow: View {
     }
 }
 
-// MARK: - Empty State
+// Empty State
 
 struct EmptyVaultView: View {
     @Binding var showScanner: Bool
@@ -222,7 +232,7 @@ struct EmptyVaultView: View {
     }
 }
 
-// MARK: - Vault Locked View
+// Vault Locked View
 
 struct VaultLockedView: View {
     let isBiometricsAvailable: Bool
@@ -231,8 +241,6 @@ struct VaultLockedView: View {
     var body: some View {
         VStack(spacing: 28) {
             Spacer()
-
-            // Lock icon — Face ID on real device, shield on simulator
             ZStack {
                 Circle()
                     .fill(Color.nestPurple.opacity(0.12))
@@ -241,77 +249,51 @@ struct VaultLockedView: View {
                     .font(.system(size: 58, weight: .light))
                     .foregroundColor(.nestPurple)
             }
-
             VStack(spacing: 10) {
                 Text("Notes Vault Locked")
                     .font(.title2).bold().foregroundColor(.nestDark)
-
                 if isBiometricsAvailable {
-                    // Real device — proper Face ID description
                     Text("Authenticate with Face ID to access your private notes.")
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.gray)
-                        .padding(.horizontal, 40)
+                        .multilineTextAlignment(.center).foregroundColor(.gray).padding(.horizontal, 40)
                 } else {
-                    // Simulator — explain the gate is still enforced
                     VStack(spacing: 6) {
                         Text("Face ID is required to access this vault.")
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, 40)
-
-                        // Simulator-only badge
+                            .multilineTextAlignment(.center).foregroundColor(.gray).padding(.horizontal, 40)
                         Label("Simulator Mode", systemImage: "desktopcomputer")
-                            .font(.caption)
-                            .foregroundColor(.nestPurple)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.nestLightPurple)
-                            .clipShape(Capsule())
+                            .font(.caption).foregroundColor(.nestPurple)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(Color.nestLightPurple).clipShape(Capsule())
                     }
                 }
             }
-
             Spacer()
-
             VStack(spacing: 12) {
-                if isBiometricsAvailable {
-                    // Real device — Face ID button
-                    Button(action: onUnlock) {
-                        Label("Unlock with Face ID", systemImage: "faceid")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(GradientButtonStyle())
-                } else {
-                    // Simulator — clearly labelled dev bypass, gate still visible
-                    Button(action: onUnlock) {
-                        Label("Simulate Face ID unlock", systemImage: "faceid")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(GradientButtonStyle())
-
+                Button(action: onUnlock) {
+                    Label(
+                        isBiometricsAvailable ? "Unlock with Face ID" : "Simulate Face ID unlock",
+                        systemImage: "faceid"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(GradientButtonStyle())
+                if !isBiometricsAvailable {
                     Text("On a real device this button is replaced by a Face ID prompt.")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
+                        .font(.caption2).foregroundColor(.gray).multilineTextAlignment(.center)
                 }
             }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 40)
+            .padding(.horizontal, 40).padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-// MARK: - Outline Button Style
+// Outline Button Style
 
 struct OutlineButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline)
-            .foregroundColor(.nestPurple)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .font(.headline).foregroundColor(.nestPurple)
+            .padding(.horizontal, 20).padding(.vertical, 12)
             .background(RoundedRectangle(cornerRadius: 12).stroke(Color.nestPurple, lineWidth: 1.5))
             .opacity(configuration.isPressed ? 0.7 : 1)
     }

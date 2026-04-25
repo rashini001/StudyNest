@@ -11,7 +11,6 @@ struct OCRResultView: View {
     @State private var editableText: String = ""
     @State private var selectedDeckId: String? = nil
 
-    // Convenience — resolve the deck from its id
     private var selectedDeck: FlashcardDeck? {
         flashcardVM.decks.first { $0.id == selectedDeckId }
     }
@@ -26,7 +25,7 @@ struct OCRResultView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Tab picker
+            
                 Picker("View", selection: $activeTab) {
                     Text("Extracted Text").tag(OCRTab.text)
                     if !pairs.isEmpty {
@@ -55,7 +54,7 @@ struct OCRResultView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            // Save-as-note title alert
+           
             .alert("Save as Note", isPresented: $showSaveNoteAlert) {
                 TextField("Note title", text: $noteTitle)
                 Button("Save") {
@@ -75,11 +74,11 @@ struct OCRResultView: View {
         }
     }
 
-    // MARK: - Text Tab
+    // Text Tab
 
     private var textTab: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Action bar
+          
             HStack(spacing: 12) {
                 Button {
                     UIPasteboard.general.string = editableText
@@ -121,7 +120,6 @@ struct OCRResultView: View {
 
             Divider()
 
-            // Editable text area
             Text("Recognised Text")
                 .font(.headline)
                 .foregroundColor(.nestPurple)
@@ -146,7 +144,7 @@ struct OCRResultView: View {
         .padding(16)
     }
 
-    // MARK: - Flashcards Tab
+    // Flashcards Tab
 
     private var flashcardsTab: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -166,7 +164,7 @@ struct OCRResultView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 60)
             } else {
-                // Deck selector
+               
                 if !flashcardVM.decks.isEmpty {
                     HStack {
                         Text("Save to deck:")
@@ -183,7 +181,6 @@ struct OCRResultView: View {
                     .padding(.horizontal, 4)
                 }
 
-                // Select all / none
                 HStack {
                     Text("\(confirmedPairs.count) of \(pairs.count) selected")
                         .font(.subheadline)
@@ -200,7 +197,6 @@ struct OCRResultView: View {
                     .foregroundColor(.nestPurple)
                 }
 
-                // Pair cards
                 ForEach(Array(pairs.enumerated()), id: \.offset) { i, pair in
                     FlashcardPairRow(
                         pair: pair,
@@ -215,7 +211,6 @@ struct OCRResultView: View {
                     )
                 }
 
-                // Save button
                 Button {
                     guard let deck = selectedDeck else { return }
                     let selected = confirmedPairs.sorted().filter { $0 < pairs.count }.map { pairs[$0] }
@@ -239,7 +234,7 @@ struct OCRResultView: View {
     }
 }
 
-// MARK: - Flashcard Pair Row
+// Flashcard Pair Row
 
 struct FlashcardPairRow: View {
     let pair: (question: String, answer: String)

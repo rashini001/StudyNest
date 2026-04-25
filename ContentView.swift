@@ -10,8 +10,6 @@ struct MainTabView: View {
             HomeView()
                 .tabItem { Label("Home",  systemImage: "house.fill") }
                 .tag(0)
-
-            // ── Pomodoro replaces Map in slot 1 ──
             PomodoroView()
                 .tabItem { Label("Focus", systemImage: "timer") }
                 .tag(1)
